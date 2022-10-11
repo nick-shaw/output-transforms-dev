@@ -2,7 +2,7 @@
 version 13.1 v2
 define_window_layout_xml {<?xml version="1.0" encoding="UTF-8"?>
 <layout version="1.0">
-    <window x="0" y="0" w="1792" h="1120" fullscreen="1" screen="0">
+    <window x="0" y="23" w="1792" h="1075" maximized="1" screen="0">
         <splitter orientation="1">
             <split size="40"/>
             <dock id="" hideTitles="1" activePageId="Toolbar.1">
@@ -10,17 +10,15 @@ define_window_layout_xml {<?xml version="1.0" encoding="UTF-8"?>
             </dock>
             <split size="1129" stretch="1"/>
             <splitter orientation="2">
-                <split size="646"/>
+                <split size="619"/>
                 <dock id="" activePageId="Viewer.1">
                     <page id="Viewer.1"/>
                 </dock>
-                <split size="454"/>
+                <split size="436"/>
                 <dock id="" activePageId="DAG.1" focus="true">
                     <page id="DAG.1"/>
                     <page id="Curve Editor.1"/>
                     <page id="DopeSheet.1"/>
-                    <page id="DAG.2"/>
-                    <page id="DAG.3"/>
                 </dock>
             </splitter>
             <split size="615"/>
@@ -35,7 +33,7 @@ define_window_layout_xml {<?xml version="1.0" encoding="UTF-8"?>
 Root {
  inputs 0
  name /Users/nick/github/output-transforms-dev/display-transforms/nuke/CAM_DRT_scratchPad_ns.nk
- frame 518
+ frame 11
  first_frame 0
  last_frame 563
  lock_range true
@@ -98,13 +96,6 @@ OCIOColorSpace {
  xpos 120
  ypos -96
 }
-GamutCompress {
- name GamutCompress2
- label "\[value direction]"
- xpos 120
- ypos -72
- disable true
-}
 Read {
  inputs 0
  file_type exr
@@ -143,21 +134,14 @@ OCIOColorSpace {
  xpos -237
  ypos -97
 }
-GamutCompress {
- name GamutCompress1
- label "\[value direction]"
- xpos -237
- ypos -73
- disable true
-}
 Switch {
  inputs 3
- which 2
+ which 1
  name Switch1
  xpos -53
  ypos -53
 }
-set N8640ab00 [stack 0]
+set N23ed7200 [stack 0]
 Group {
  name DRT_CAM_Blink2
  label "Input: \[value encoding_in] / \[value primaries_in]\nLimit: \[value primaries_limit] / \[value ssts_luminance.2]nits\nOutput: \[value encoding_out] / \[value primaries_out]\n\[value toneScaleMode]\n\[value camMode] \[if \{\[value DRT_CAM_Kernel_HK_mode]==true\} \{return HK\\ mode\}]\n\nBodged XYZ_to_LMS_ZCAM matrix\n"
@@ -264,14 +248,14 @@ Group {
   xpos -908
   ypos -292
  }
-set N23070c00 [stack 0]
+set N23f09800 [stack 0]
  Colorspace {
   colorspace_out CIE-XYZ
   name Colorspace2
   xpos -1067
   ypos -213
  }
-push $N23070c00
+push $N23f09800
  BlinkScript {
   kernelSourceFile /Users/afry/GitHub/output-transforms-dev/display-transforms/nuke/CAM_DRT_v018.blink
   recompileCount 556
@@ -355,7 +339,7 @@ push $N23070c00
   addUserKnob {7 matrixScaler R 0 2}
   matrixScaler 0.99415
  }
-set N23070400 [stack 0]
+set N23f09000 [stack 0]
  Clamp {
   minimum_enable false
   maximum {{parent.parent.DRT_CAM_Blink2.ssts_luminance.z/100}}
@@ -369,14 +353,14 @@ set N23070400 [stack 0]
   xpos -908
   ypos -10
  }
-push $N23070400
+push $N23f09000
  Multiply {
   value 0.01
   name Multiply1
   xpos -757
   ypos -139
  }
-push $N23070c00
+push $N23f09800
  Colorspace {
   primary_in ACES
   colorspace_out sRGB
@@ -578,8 +562,8 @@ push $N23070c00
     xpos -260
     ypos 110
    }
-set N22f6b800 [stack 0]
-push $N22f6b800
+set N23e84800 [stack 0]
+push $N23e84800
    ContactSheet {
     inputs 2
     width {{width*columns}}
@@ -651,7 +635,7 @@ push $N22f6b800
     xpos -40
     ypos -341
    }
-set N22f69000 [stack 0]
+set N23e09c00 [stack 0]
    Dot {
     name Dot2
     label " "
@@ -684,7 +668,7 @@ set N22f69000 [stack 0]
     addUserKnob {12 white}
     white {{"parent.distribution ? 4*parent.wxy.x / ( -2 * parent.wxy.x + 12 * parent.wxy.y + 3) : parent.wxy"} {"parent.distribution ? 9*parent.wxy.y / ( -2*parent.wxy.x + 12*parent.wxy.y + 3) : parent.wxy"}}
    }
-set N22f68400 [stack 0]
+set N23e09000 [stack 0]
    Posterize {
     channels rgb
     Colors {{rint(parent.density/3*2)}}
@@ -692,8 +676,8 @@ set N22f68400 [stack 0]
     xpos -590
     ypos -191
    }
-set N32167c00 [stack 0]
-push $N22f68400
+set N23e08c00 [stack 0]
+push $N23e09000
    Dot {
     name Dot15
     xpos -446
@@ -707,8 +691,8 @@ push $N22f68400
     xpos -480
     ypos -154
    }
-push $N32167c00
-push $N22f68400
+push $N23e08c00
+push $N23e09000
    Dot {
     name Dot16
     xpos -666
@@ -821,8 +805,8 @@ push $N22f68400
     xpos -556
     ypos 378
    }
-push $N22f6b800
-push $N22f69000
+push $N23e84800
+push $N23e09c00
    Expression {
     expr0 r
     expr1 "4*g / ( -2*g + 12*b + 3)"
@@ -946,7 +930,7 @@ push $N22f69000
     postage_stamp false
    }
   end_group
-set N22fbc800 [stack 0]
+set N23e74800 [stack 0]
   Group {
    name RGBToXYZ_GamutGrid
    label "\[if \{\[value invert]\} \{return \"XYZ to \[value gamut]\"\} else \{return \"\[value gamut] to XYZ\"\}]\n\n"
@@ -1020,7 +1004,7 @@ set N22fbc800 [stack 0]
    xpos -920
    ypos 134
   }
-set N37d3ec00 [stack 0]
+set N382d7800 [stack 0]
   Group {
    name RGBToXYZ_GamutC
    label "\[if \{\[value invert]\} \{return \"XYZ to \[value gamut]\"\} else \{return \"\[value gamut] to XYZ\"\}]\n\n"
@@ -1079,7 +1063,7 @@ set N37d3ec00 [stack 0]
    xpos -1140
    ypos 254
   }
-push $N37d3ec00
+push $N382d7800
   Group {
    name RGBToXYZ_GamutB
    label "\[if \{\[value invert]\} \{return \"XYZ to \[value gamut]\"\} else \{return \"\[value gamut] to XYZ\"\}]\n\n"
@@ -1138,7 +1122,7 @@ push $N37d3ec00
    xpos -1030
    ypos 254
   }
-push $N37d3ec00
+push $N382d7800
   Group {
    name RGBToXYZ_GamutA
    label "\[if \{\[value invert]\} \{return \"XYZ to \[value gamut]\"\} else \{return \"\[value gamut] to XYZ\"\}]\n\n"
@@ -1197,7 +1181,7 @@ push $N37d3ec00
    xpos -920
    ypos 254
   }
-push $N22fbc800
+push $N23e74800
   Reformat {
    type scale
    scale 0.8
@@ -2365,7 +2349,7 @@ push $N22fbc800
    xpos -666
    ypos -1302
   }
-set N321b7000 [stack 0]
+set N38007c00 [stack 0]
   Dot {
    name Dot27
    xpos -1546
@@ -2430,7 +2414,7 @@ set N321b7000 [stack 0]
    xpos -1546
    ypos -414
   }
-push $N321b7000
+push $N38007c00
   Reformat {
    type "to box"
    box_width 2048
@@ -2456,19 +2440,19 @@ push $N321b7000
    xpos -666
    ypos -1158
   }
-set N37e13400 [stack 0]
+set N38004400 [stack 0]
   Dot {
    name Dot26
    xpos -886
    ypos -1158
   }
-set N37e13000 [stack 0]
+set N38417c00 [stack 0]
   Dot {
    name Dot23
    xpos -1106
    ypos -1158
   }
-set N37e12c00 [stack 0]
+set N38417800 [stack 0]
   Dot {
    name Dot12
    xpos -1326
@@ -2555,7 +2539,7 @@ set N37e12c00 [stack 0]
    xpos -1326
    ypos -486
   }
-push $N37e12c00
+push $N38417800
   Reformat {
    type "to box"
    box_width {{parent.Reformat1.box_width}}
@@ -2576,7 +2560,7 @@ push $N37e12c00
    xpos -1140
    ypos -898
   }
-set N37dc6800 [stack 0]
+set N383cf400 [stack 0]
   Dot {
    name Dot8
    xpos -996
@@ -2597,7 +2581,7 @@ set N37dc6800 [stack 0]
    xpos -996
    ypos -750
   }
-push $N37dc6800
+push $N383cf400
   Multiply {
    channels rgb
    value 269
@@ -2644,13 +2628,13 @@ push $N37dc6800
    xpos -1106
    ypos -654
   }
-push $N37e13000
+push $N38417c00
   Dot {
    name Dot4
    xpos -886
    ypos -1086
   }
-set N37d6bc00 [stack 0]
+set N383ccc00 [stack 0]
   Rectangle {
    replace true
    area {0 0 6 {height}}
@@ -2663,7 +2647,7 @@ set N37d6bc00 [stack 0]
    xpos -810
    ypos -1041
   }
-push $N37d6bc00
+push $N383ccc00
   Radial {
    inputs 1+1
    replace true
@@ -2683,7 +2667,7 @@ push $N37d6bc00
    xpos -886
    ypos -894
   }
-push $N37e13400
+push $N38004400
   Gamma {
    channels rgba
    value 0.5
@@ -2805,7 +2789,7 @@ push $N37e13400
    xpos -666
    ypos 450
   }
-set N380fb000 [stack 0]
+set N386ebc00 [stack 0]
   Dot {
    name Dot5
    label " "
@@ -2843,7 +2827,7 @@ set N380fb000 [stack 0]
    xpos -556
    ypos 618
   }
-push $N380fb000
+push $N386ebc00
   ColorMatrix {
    matrix {
        {{parent.GamutToXYZ.ColorMatrix.matrix} {parent.GamutToXYZ.ColorMatrix.matrix} {parent.GamutToXYZ.ColorMatrix.matrix}}
@@ -2931,7 +2915,7 @@ push $N380fb000
    xpos 654
    ypos 162
   }
-set N3809b800 [stack 0]
+set N386e8800 [stack 0]
   Constant {
    inputs 0
    channels rgb
@@ -2987,7 +2971,7 @@ set N3809b800 [stack 0]
    xpos 324
    ypos 282
   }
-set N38099c00 [stack 0]
+set N386a6800 [stack 0]
   ColorMatrix {
    matrix {
        {{parent.GamutToXYZ.ColorMatrix.matrix} {parent.GamutToXYZ.ColorMatrix.matrix} {parent.GamutToXYZ.ColorMatrix.matrix}}
@@ -3018,7 +3002,7 @@ set N38099c00 [stack 0]
    ypos 368
    disable {{!parent.diagram}}
   }
-push $N38099c00
+push $N386a6800
   BlinkScript {
    inputs 2
    KernelDescription "2 \"PlotChromaticity_sample\" iterate pixelWise 20e14b615a937bac78c1a771cbdfd10cc7c5fb6c487f65d0bb2d6633e404b958 3 \"col\" Read Random \"Yxy\" Read Random \"dst\" Write Random 3 \"padding\" Float 1 AAAAAA== \"left_margin\" Float 1 AAAAAA== \"tolerance\" Float 1 AAAAAA== 3 \"padding\" 1 1 \"left_margin\" 1 1 \"tolerance\" 1 1 2 \"outsize\" Float 1 1 AAAAAA== \"offset\" Float 1 1 AAAAAA=="
@@ -3039,7 +3023,7 @@ push $N38099c00
    xpos 324
    ypos 450
   }
-set N38098800 [stack 0]
+set N386a5400 [stack 0]
   Dilate {
    channels rgba
    size {{Output.width/2048}}
@@ -3048,7 +3032,7 @@ set N38098800 [stack 0]
    xpos 290
    ypos 488
   }
-set N38098400 [stack 0]
+set N386a5000 [stack 0]
   Dilate {
    channels rgba
    size {{Output.width/2048*2}}
@@ -3057,7 +3041,7 @@ set N38098400 [stack 0]
    xpos 180
    ypos 488
   }
-push $N38098800
+push $N386a5400
   Dot {
    name Dot21
    xpos -6
@@ -3072,7 +3056,7 @@ push $N38098800
    xpos -40
    ypos 489
   }
-set N38037400 [stack 0]
+set N386a4400 [stack 0]
   Dilate {
    channels rgba
    size {0 {parent.Dilate3.size.w}}
@@ -3081,7 +3065,7 @@ set N38037400 [stack 0]
    xpos -40
    ypos 584
   }
-push $N38037400
+push $N386a4400
   Dilate {
    channels rgba
    size {{Output.width*plus_size/100} 0}
@@ -3161,7 +3145,7 @@ push $N38037400
     ypos 302
    }
   end_group
-push $N38098400
+push $N386a5000
   Merge2 {
    inputs 2
    bbox B
@@ -3178,7 +3162,7 @@ push $N38098400
    xpos 324
    ypos 690
   }
-push $N3809b800
+push $N386e8800
   Dot {
    name Dot1
    label " "
@@ -3267,7 +3251,7 @@ push $N3809b800
    xpos 764
    ypos 546
   }
-push $N3809b800
+push $N386e8800
   Dot {
    name Dot16
    label " Col"
@@ -3329,7 +3313,7 @@ push $N3809b800
   ypos -4
  }
 end_group
-push $N8640ab00
+push $N23ed7200
 Group {
  name DRT_CAM_Blink1
  label "Input: \[value encoding_in] / \[value primaries_in]\nLimit: \[value primaries_limit] / \[value ssts_luminance.2]nits\nOutput: \[value encoding_out] / \[value primaries_out]\n\[value toneScaleMode]\n\[value camMode] \[if \{\[value DRT_CAM_Kernel_HK_mode]==true\} \{return HK\\ mode\}]\n\nBodged XYZ_to_LMS_ZCAM matrix\n"
@@ -3437,14 +3421,14 @@ Group {
   xpos -908
   ypos -292
  }
-set N37f4b800 [stack 0]
+set N385cc800 [stack 0]
  Colorspace {
   colorspace_out CIE-XYZ
   name Colorspace2
   xpos -1067
   ypos -213
  }
-push $N37f4b800
+push $N385cc800
  BlinkScript {
   kernelSourceFile /Users/nick/github/output-transforms-dev/display-transforms/nuke/CAM_DRT_v018_ns.blink
   recompileCount 569
@@ -3526,7 +3510,7 @@ push $N37f4b800
   addUserKnob {7 matrixScaler R 0 2}
   matrixScaler 0.99415
  }
-set N37f4b000 [stack 0]
+set N3854bc00 [stack 0]
  Clamp {
   minimum_enable false
   maximum {{parent.parent.DRT_CAM_Blink1.ssts_luminance.z/100}}
@@ -3540,14 +3524,14 @@ set N37f4b000 [stack 0]
   xpos -908
   ypos -10
  }
-push $N37f4b000
+push $N3854bc00
  Multiply {
   value 0.01
   name Multiply1
   xpos -757
   ypos -139
  }
-push $N37f4b800
+push $N385cc800
  Colorspace {
   primary_in ACES
   colorspace_out sRGB
@@ -3749,8 +3733,8 @@ push $N37f4b800
     xpos -260
     ypos 110
    }
-set N37eca800 [stack 0]
-push $N37eca800
+set N384bb400 [stack 0]
+push $N384bb400
    ContactSheet {
     inputs 2
     width {{width*columns}}
@@ -3822,7 +3806,7 @@ push $N37eca800
     xpos -40
     ypos -341
    }
-set N37e73c00 [stack 0]
+set N384b8c00 [stack 0]
    Dot {
     name Dot2
     label " "
@@ -3855,7 +3839,7 @@ set N37e73c00 [stack 0]
     addUserKnob {12 white}
     white {{"parent.distribution ? 4*parent.wxy.x / ( -2 * parent.wxy.x + 12 * parent.wxy.y + 3) : parent.wxy"} {"parent.distribution ? 9*parent.wxy.y / ( -2*parent.wxy.x + 12*parent.wxy.y + 3) : parent.wxy"}}
    }
-set N37e73000 [stack 0]
+set N38477c00 [stack 0]
    Posterize {
     channels rgb
     Colors {{rint(parent.density/3*2)}}
@@ -3863,8 +3847,8 @@ set N37e73000 [stack 0]
     xpos -590
     ypos -191
    }
-set N37e72c00 [stack 0]
-push $N37e73000
+set N38477800 [stack 0]
+push $N38477c00
    Dot {
     name Dot15
     xpos -446
@@ -3878,8 +3862,8 @@ push $N37e73000
     xpos -480
     ypos -154
    }
-push $N37e72c00
-push $N37e73000
+push $N38477800
+push $N38477c00
    Dot {
     name Dot16
     xpos -666
@@ -3992,8 +3976,8 @@ push $N37e73000
     xpos -556
     ypos 378
    }
-push $N37eca800
-push $N37e73c00
+push $N384bb400
+push $N384b8c00
    Expression {
     expr0 r
     expr1 "4*g / ( -2*g + 12*b + 3)"
@@ -4117,7 +4101,7 @@ push $N37e73c00
     postage_stamp false
    }
   end_group
-set N37ef8f00 [stack 0]
+set N38514f00 [stack 0]
   Group {
    name RGBToXYZ_GamutGrid
    label "\[if \{\[value invert]\} \{return \"XYZ to \[value gamut]\"\} else \{return \"\[value gamut] to XYZ\"\}]\n\n"
@@ -4191,7 +4175,7 @@ set N37ef8f00 [stack 0]
    xpos -920
    ypos 134
   }
-set N38195c00 [stack 0]
+set N387fe800 [stack 0]
   Group {
    name RGBToXYZ_GamutC
    label "\[if \{\[value invert]\} \{return \"XYZ to \[value gamut]\"\} else \{return \"\[value gamut] to XYZ\"\}]\n\n"
@@ -4250,7 +4234,7 @@ set N38195c00 [stack 0]
    xpos -1140
    ypos 254
   }
-push $N38195c00
+push $N387fe800
   Group {
    name RGBToXYZ_GamutB
    label "\[if \{\[value invert]\} \{return \"XYZ to \[value gamut]\"\} else \{return \"\[value gamut] to XYZ\"\}]\n\n"
@@ -4309,7 +4293,7 @@ push $N38195c00
    xpos -1030
    ypos 254
   }
-push $N38195c00
+push $N387fe800
   Group {
    name RGBToXYZ_GamutA
    label "\[if \{\[value invert]\} \{return \"XYZ to \[value gamut]\"\} else \{return \"\[value gamut] to XYZ\"\}]\n\n"
@@ -4368,7 +4352,7 @@ push $N38195c00
    xpos -920
    ypos 254
   }
-push $N37ef8f00
+push $N38514f00
   Reformat {
    type scale
    scale 0.8
@@ -5536,7 +5520,7 @@ push $N37ef8f00
    xpos -666
    ypos -1302
   }
-set N382aa000 [stack 0]
+set N3891ec00 [stack 0]
   Dot {
    name Dot27
    xpos -1546
@@ -5601,7 +5585,7 @@ set N382aa000 [stack 0]
    xpos -1546
    ypos -414
   }
-push $N382aa000
+push $N3891ec00
   Reformat {
    type "to box"
    box_width 2048
@@ -5627,19 +5611,19 @@ push $N382aa000
    xpos -666
    ypos -1158
   }
-set N38652400 [stack 0]
+set N38cc3000 [stack 0]
   Dot {
    name Dot26
    xpos -886
    ypos -1158
   }
-set N38652000 [stack 0]
+set N38cc2c00 [stack 0]
   Dot {
    name Dot23
    xpos -1106
    ypos -1158
   }
-set N38651c00 [stack 0]
+set N38cc2800 [stack 0]
   Dot {
    name Dot12
    xpos -1326
@@ -5726,7 +5710,7 @@ set N38651c00 [stack 0]
    xpos -1326
    ypos -486
   }
-push $N38651c00
+push $N38cc2800
   Reformat {
    type "to box"
    box_width {{parent.Reformat1.box_width}}
@@ -5747,7 +5731,7 @@ push $N38651c00
    xpos -1140
    ypos -898
   }
-set N38609800 [stack 0]
+set N38c76400 [stack 0]
   Dot {
    name Dot8
    xpos -996
@@ -5768,7 +5752,7 @@ set N38609800 [stack 0]
    xpos -996
    ypos -750
   }
-push $N38609800
+push $N38c76400
   Multiply {
    channels rgb
    value 269
@@ -5815,13 +5799,13 @@ push $N38609800
    xpos -1106
    ypos -654
   }
-push $N38652000
+push $N38cc2c00
   Dot {
    name Dot4
    xpos -886
    ypos -1086
   }
-set N385b6c00 [stack 0]
+set N38c1f800 [stack 0]
   Rectangle {
    replace true
    area {0 0 6 {height}}
@@ -5834,7 +5818,7 @@ set N385b6c00 [stack 0]
    xpos -810
    ypos -1041
   }
-push $N385b6c00
+push $N38c1f800
   Radial {
    inputs 1+1
    replace true
@@ -5854,7 +5838,7 @@ push $N385b6c00
    xpos -886
    ypos -894
   }
-push $N38652400
+push $N38cc3000
   Gamma {
    channels rgba
    value 0.5
@@ -5976,7 +5960,7 @@ push $N38652400
    xpos -666
    ypos 450
   }
-set N3894a000 [stack 0]
+set N38faac00 [stack 0]
   Dot {
    name Dot5
    label " "
@@ -6014,7 +5998,7 @@ set N3894a000 [stack 0]
    xpos -556
    ypos 618
   }
-push $N3894a000
+push $N38faac00
   ColorMatrix {
    matrix {
        {{parent.GamutToXYZ.ColorMatrix.matrix} {parent.GamutToXYZ.ColorMatrix.matrix} {parent.GamutToXYZ.ColorMatrix.matrix}}
@@ -6102,7 +6086,7 @@ push $N3894a000
    xpos 654
    ypos 162
   }
-set N388e6800 [stack 0]
+set N38f57400 [stack 0]
   Constant {
    inputs 0
    channels rgb
@@ -6158,7 +6142,7 @@ set N388e6800 [stack 0]
    xpos 324
    ypos 282
   }
-set N388e4c00 [stack 0]
+set N38f55800 [stack 0]
   ColorMatrix {
    matrix {
        {{parent.GamutToXYZ.ColorMatrix.matrix} {parent.GamutToXYZ.ColorMatrix.matrix} {parent.GamutToXYZ.ColorMatrix.matrix}}
@@ -6189,7 +6173,7 @@ set N388e4c00 [stack 0]
    ypos 368
    disable {{!parent.diagram}}
   }
-push $N388e4c00
+push $N38f55800
   BlinkScript {
    inputs 2
    KernelDescription "2 \"PlotChromaticity_sample\" iterate pixelWise 20e14b615a937bac78c1a771cbdfd10cc7c5fb6c487f65d0bb2d6633e404b958 3 \"col\" Read Random \"Yxy\" Read Random \"dst\" Write Random 3 \"padding\" Float 1 AAAAAA== \"left_margin\" Float 1 AAAAAA== \"tolerance\" Float 1 AAAAAA== 3 \"padding\" 1 1 \"left_margin\" 1 1 \"tolerance\" 1 1 2 \"outsize\" Float 1 1 AAAAAA== \"offset\" Float 1 1 AAAAAA=="
@@ -6210,7 +6194,7 @@ push $N388e4c00
    xpos 324
    ypos 450
   }
-set N3888b400 [stack 0]
+set N38f54400 [stack 0]
   Dilate {
    channels rgba
    size {{Output.width/2048}}
@@ -6219,7 +6203,7 @@ set N3888b400 [stack 0]
    xpos 290
    ypos 488
   }
-set N3888b000 [stack 0]
+set N38ef3c00 [stack 0]
   Dilate {
    channels rgba
    size {{Output.width/2048*2}}
@@ -6228,7 +6212,7 @@ set N3888b000 [stack 0]
    xpos 180
    ypos 488
   }
-push $N3888b400
+push $N38f54400
   Dot {
    name Dot21
    xpos -6
@@ -6243,7 +6227,7 @@ push $N3888b400
    xpos -40
    ypos 489
   }
-set N3888a400 [stack 0]
+set N38ef3000 [stack 0]
   Dilate {
    channels rgba
    size {0 {parent.Dilate3.size.w}}
@@ -6252,7 +6236,7 @@ set N3888a400 [stack 0]
    xpos -40
    ypos 584
   }
-push $N3888a400
+push $N38ef3000
   Dilate {
    channels rgba
    size {{Output.width*plus_size/100} 0}
@@ -6332,7 +6316,7 @@ push $N3888a400
     ypos 302
    }
   end_group
-push $N3888b000
+push $N38ef3c00
   Merge2 {
    inputs 2
    bbox B
@@ -6349,7 +6333,7 @@ push $N3888b000
    xpos 324
    ypos 690
   }
-push $N388e6800
+push $N38f57400
   Dot {
    name Dot1
    label " "
@@ -6438,7 +6422,7 @@ push $N388e6800
    xpos 764
    ypos 546
   }
-push $N388e6800
+push $N38f57400
   Dot {
    name Dot16
    label " Col"
@@ -6502,7 +6486,6 @@ push $N388e6800
 end_group
 Viewer {
  inputs 2
- frame 518
  frame_range 0-563
  colour_sample_bbox {0.181250006 0.365624994 0.1822916716 0.3666666746}
  viewerProcess None
@@ -6510,37 +6493,10 @@ Viewer {
  xpos -49
  ypos 127
 }
-Group {
+ShotSelector {
  inputs 0
- name ShotSelector
- onCreate "frameNums = \[int(nuke.root()\[\"first_frame\"].value())]"
- xpos -489
- ypos 8
- addUserKnob {20 User}
- addUserKnob {41 GoTo T ShotSelector1.GoTo}
- addUserKnob {41 shot l "" -STARTLINE T ShotSelector1.shot}
- addUserKnob {41 indexFile l "Index File" t "Tab delimited text file.\nColumn 1: frame numbers\nColumn 2: shot names" T ShotSelector1.indexFile}
- addUserKnob {41 loadIndex l Load -STARTLINE T ShotSelector1.loadIndex}
- addUserKnob {26 ""}
- addUserKnob {26 copyright l "" +STARTLINE T "© 2022 Nick Shaw, www.antlerpost.com\n"}
+ name ShotSelector1
+ xpos -483
+ ypos 15
+ indexFile /Volumes/SSD_2TB_01/images1/aces_sequence/index.txt
 }
- Input {
-  inputs 0
-  name Input1
- }
- NoOp {
-  name ShotSelector1
-  knobChanged "n = nuke.thisNode()\nkt = nuke.thisKnob()\nif kt.name() == 'indexFile':\n    fileName = kt.value()\n    with open(fileName) as f:\n        lines = f.readlines()\n    frameNums = \[]\n    frameNames = \[]\n    for line in lines:\n        frameNums.append(int(line.split('\\t')\[0]))\n        frameNames.append(line.split('\\t')\[1].strip())\n    n.removeKnob(n.knob('shot'))\n    k = nuke.Enumeration_Knob('shot', 'Shot', frameNames)\n    n.addKnob(k)"
-  selected true
-  addUserKnob {20 User}
-  addUserKnob {22 GoTo T "i = int(nuke.thisNode().knob('shot').getValue())\nnuke.frame(frameNums\[i])" +STARTLINE}
-  addUserKnob {2 indexFile l "Index File"}
-  indexFile /Volumes/SSD_2TB_01/images1/aces_sequence/index.txt
-  addUserKnob {22 loadIndex l "Load Index" T "n = nuke.thisNode()\n\nfileName = n.knob('indexFile').value()\n\nwith open(fileName) as f:\n    lines = f.readlines()\nframeNums = \[]\nframeNames = \[]\nfor line in lines:\n    frameNums.append(int(line.split('\\t')\[0]))\n    frameNames.append(line.split('\\t')\[1].strip())\n\nn.removeKnob(n.knob('shot'))\nk = nuke.Enumeration_Knob('shot', 'Shot', frameNames)\nn.addKnob(k)" +STARTLINE}
-  addUserKnob {4 shot l Shot M {"F-35 still life" "2-shot reading by red pillar" "brand colours" Marcie "Skintones 1" "Skintones 2" garlic "ARRI snowy lakeside" "garage explosion" "silver car bright headlights" "dock explosion" "washing line" charts "LEGO chart" "Hollywood Boulevard night" "underexposed blue-screen champagne" "underexposed green-screen champagne" "green-screen champagne" "blue-screen champagne" "dock explosion (brighter)" "ARRI Ludwigstrasse"}}
-  shot "underexposed blue-screen champagne"
- }
- Output {
-  name Output1
- }
-end_group
