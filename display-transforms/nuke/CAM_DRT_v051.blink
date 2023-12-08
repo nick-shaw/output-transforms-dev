@@ -2197,7 +2197,8 @@ float3 uncompress_bjorn(float3 xyz)
     float4 interpolatedCompressionFuncParams;
     if( reachNick )
     {
-      interpolatedCompressionFuncParams = getCompressionFuncParams(JMh);
+//       interpolatedCompressionFuncParams = getCompressionFuncParams(JMh);
+      interpolatedCompressionFuncParams = getCompressionFuncParams(float3(JMboundary.x,JMboundary.y,JMh.z));
     }
     else
     {
