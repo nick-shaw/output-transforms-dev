@@ -2038,8 +2038,19 @@ float3 uncompress_bjorn(float3 xyz)
       float2 JMcusp = cuspFromTable(Jmh.z);
       float focusJ = lerp(JMcusp.x, midJ, cuspMidBlend);
       float slope_gain = limitJmax * focusDistance;
-      float3 boundaryNick = findGamutBoundaryIntersection(Jmh, float2(limitJmax, reachMaxM), focusJ, limitJmax, slope_gain, 0.0f);
-      return float3(boundaryNick.x, boundaryNick.y, h);
+      float intersectJ = solve_J_intersect(JMcusp, focusJ, limitJmax, slope_gain);
+      float slope;
+      if (intersectJ < focusJ)
+	  {
+			slope = intersectJ * (intersectJ - focusJ) / (focusJ * slope_gain);
+	  }
+	  else
+	  {
+			slope = (limitJmax - intersectJ) * (intersectJ - focusJ) / (focusJ * slope_gain);
+	  } 
+      float boundaryNick = limitJmax * pow(intersectJ/limitJmax, model_gamma) * reachMaxM / (limitJmax - slope * reachMaxM);
+//       float boundaryNick = limitJmax * pow(intersectJ/limitJmax, lowerHullGamma) * reachMaxM / (limitJmax - slope * reachMaxM);
+      return float3(Jmh.x,boundaryNick,Jmh.z);
     }
     float cuspTarget = reachMaxM * pow((Jmh.x/limitJmax), model_gamma);
     return float3(Jmh.x,cuspTarget,Jmh.z);
