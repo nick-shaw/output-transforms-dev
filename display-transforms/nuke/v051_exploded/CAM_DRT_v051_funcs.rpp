@@ -1698,7 +1698,7 @@ float3 uncompress_bjorn(float3 xyz)
       float2 JMcusp = cuspFromTable(Jmh.z);
       float focusJ = lerp(JMcusp.x, midJ, cuspMidBlend);
       float slope_gain = limitJmax * focusDistance;
-      float intersectJ = solve_J_intersect(JMcusp, focusJ, limitJmax, slope_gain);
+      float intersectJ = solve_J_intersect(float2(Jmh.x,Jmh.y), focusJ, limitJmax, slope_gain);
       float slope;
       if (intersectJ < focusJ)
 	  {
