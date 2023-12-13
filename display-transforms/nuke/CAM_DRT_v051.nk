@@ -78,7 +78,6 @@ Group {
  compression_params {0.75 1.1 1.05 1.2}
  addUserKnob {6 compression_params_panelDropped l "panel dropped state" -STARTLINE +HIDDEN}
  addUserKnob {7 smooth_cusps l "smooth cusps" t "the amount by how much to smooth the edges and corners of the limiting gamut cube, except the black & white corners."}
- smooth_cusps 0.1
  addUserKnob {20 sixAxisCompression n 1}
  sixAxisCompression 0
  addUserKnob {6 sixAxisCompressionMode +STARTLINE}
@@ -212,7 +211,7 @@ Group {
   DRT_CAM_Kernel_fitWhite {{parent.fit_white}}
   DRT_CAM_Kernel_clampOutput {{parent.clamp_output}}
   DRT_CAM_Kernel_softclampOutput {{parent.soft_clamp}}
-  DRT_CAM_Kernel_clamp_thr 0.995
+  DRT_CAM_Kernel_clamp_thr 0.999
   DRT_CAM_Kernel_clamp_dist 1.2
   DRT_CAM_Kernel_invert {{parent.invert}}
   DRT_CAM_Kernel_mmScaleFactor 100
@@ -242,7 +241,6 @@ Group {
   rebuild_finalise ""
   name BlinkScript1
   note_font "Bitstream Vera Sans"
-  selected true
   xpos -908
   ypos -199
   addUserKnob {20 User}
