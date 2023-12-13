@@ -1740,7 +1740,7 @@ float3 uncompress_bjorn(float3 xyz)
         {
             // use primary based reach
             float locusMax = getReachBoundry(Jmh).y;
-            float difference = max(1.01f, locusMax / Jmh.y);
+            float difference = max(1.0001f, locusMax / Jmh.y);
             return float4(1.0f / difference,difference,difference,compressionFuncParams.w);
         }
         else
