@@ -519,86 +519,70 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     return rgb;
   }
 
+  // basic 3D hypotenuse function, does not deal with under/overflow
+  float hypot_float3(float3 xyz)
+  {
+    return sqrt(xyz.x*xyz.x + xyz.y*xyz.y + xyz.z*xyz.z);
+  }
+
   float3 compress_bjorn(float3 xyz)
   {
-    float x = xyz.x;
-    float y = xyz.y;
-    float z = xyz.z;
+    float C = (xyz.x+xyz.y+xyz.z)/3;
 
-    float C = (x+y+z)/3;
-    if (C == 0.0f)
+    float3 xyz_temp = xyz - C;
+    float R = hypot_float3(xyz_temp);
+
+    if (R == 0.0f || C == 0.0f)
       return xyz;
 
-    float R = sqrt(spow((x-C),2) + spow((y-C),2) + spow((z-C),2)) ;
-    // np.sqrt(2/3)
-    // 0.816496580927726
-    R = R * 0.816496580927726;
+    R = R * 0.816496580927726;     // sqrt(2/3)
 
-    if (R != 0.0)
-    {
-      x = (x-C)/R ;
-      y = (y-C)/R ;
-      z = (z-C)/R ;
-    }
+    xyz_temp = xyz_temp / R;
 
     float r = R/C ;
-    float s = -min(x, min(y, z));
+    r = r*r ;
+    r = sqrt(4.0f / r + 1.0f) - 1.0f;
 
-    float t = 0.0;
-    if (r > 0.000001f)
-    {
-      t = 0.5f + spow(spow(s - 0.5f, 2.0f) + spow(sqrt(4.0f / spow(r, 2.0f) + 1.0f) - 1.0f, 2.0f) / 4.0f, 0.5f);
-      if (t < 0.000001f)
-        return xyz;
-      t = 1.0f / t;
-    }
+    float s = -min(xyz_temp.x, min(xyz_temp.y, xyz_temp.z));
+    s = s -0.5f;
 
-    x = C*x*t + C ;
-    y = C*y*t + C ;
-    z = C*z*t + C ;
+    float t = 0.5f + sqrt(s*s + r*r / 4.0f);
+    t = C / t;                                 // t is always >= 0.5f
 
-    return float3(x,y,z);
+    xyz_temp = xyz_temp * t + C;
+
+    return xyz_temp;
   }
 
 float3 uncompress_bjorn(float3 xyz)
 {
-  float x = xyz.x;
-  float y = xyz.y;
-  float z = xyz.z;
+  float C = (xyz.x+xyz.y+xyz.z)/3;
 
-  float C = (x+y+z)*(1.0/3.0) ;
-  if (C == 0.0)
+  float3 xyz_temp = xyz - C;
+  float R = hypot_float3(xyz_temp);
+
+  if (R == 0.0f || C == 0.0f)
     return xyz;
 
-  float R = sqrt(spow((x-C),2) + spow((y-C),2) + spow((z-C),2));
-  // np.sqrt(2/3)
-  // 0.816496580927726
-  R = R * 0.816496580927726;
+  R = R * 0.816496580927726;     // sqrt(2/3)
 
-  if (R != 0.0)
-  {
-    x = (x-C)/R ;
-    y = (y-C)/R ;
-    z = (z-C)/R ;
-  }
+  xyz_temp = xyz_temp / R;
 
-  float t = R/C ;
-  float s = -min(x, min(y, z));
+  float t = C/R;
+  t = t -0.5f;
+ 
+  float s = -min(xyz_temp.x, min(xyz_temp.y, xyz_temp.z));
+  s = s -0.5f;
 
-  float r = 0.0;
-  if (t > 0.000001f)
-  {
-    r = sqrt(spow((2*sqrt(spow((1/t-0.5),2)-spow((s-0.5),2))+1),2)-1);
-    if (r < 0.000001f)
-      return xyz;
-    r = 2/r;
-  }
+  float r = 2 * sqrt(fabs(t*t - s*s)) + 1;
+  r = sqrt(fabs(r*r - 1));
+  if (r == 0.0)
+    return xyz;
+  r = C * 2/r;
 
-  x = C*x*r + C ;
-  y = C*y*r + C ;
-  z = C*z*r + C ;
+  xyz_temp = xyz_temp * r + C;
 
-  return float3(x,y,z);
+  return xyz_temp;
 }
 
   float3 compress(float3 rgb)
