@@ -290,7 +290,6 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     float3x3 XYZ_to_AP1;
 
     // white points
-    float3 d65White;
     float3 inWhite;
     float3 outWhite;
     float3 refWhite;
@@ -871,19 +870,17 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
 
 
   // convert XYZ tristimulus values to the CAM J (lightness), M (colorfulness) and h (hue) correlates
-  // needs XYZ tristimulus values for the reference white and a D65 white as well as the viewing conditions as parameters
-  float3 XYZ_to_JMh( float3 XYZ, float3 referenceWhite, float3 d65White, int viewingConditions , float L_A, float Y_b, bool discountIlluminant, bool HK_mode)
+  // needs XYZ tristimulus values for the reference white and the viewing conditions as parameters
+  float3 XYZ_to_JMh( float3 XYZ, float3 referenceWhite, int viewingConditions , float L_A, float Y_b, bool discountIlluminant, bool HK_mode)
   {
     return XYZ_to_Hellwig2022_JMh(XYZ, referenceWhite, L_A, Y_b,viewingConditionsToSurround(viewingConditions),discountIlluminant,HK_mode);
   }
 
   // convert the CAM J (lightness), M (colorfulness) and h (hue) correlates to XYZ tristimulus values
-  // needs XYZ tristimulus values for the reference white and a D65 white as well as the viewing conditions as parameters
-  float3 JMh_to_XYZ( float3 JMh, float3 referenceWhite, float3 d65White, int viewingConditions , float L_A, float Y_b, bool discountIlluminant, bool HK_mode)
+  // needs XYZ tristimulus values for the reference white and the viewing conditions as parameters
+  float3 JMh_to_XYZ( float3 JMh, float3 referenceWhite, int viewingConditions , float L_A, float Y_b, bool discountIlluminant, bool HK_mode)
   {
-    float3 XYZ;
-    XYZ = Hellwig2022_JMh_to_XYZ(JMh, referenceWhite, L_A, Y_b, viewingConditionsToSurround(viewingConditions), discountIlluminant,HK_mode);
-    return XYZ;
+    return Hellwig2022_JMh_to_XYZ(JMh, referenceWhite, L_A, Y_b, viewingConditionsToSurround(viewingConditions), discountIlluminant,HK_mode);
   }
 
   // convert ST2084 PQ encoded values to linear
@@ -1000,7 +997,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
   {
     float3 luminanceRGB = encodingToLuminance3(encodingOut, RGB);
     float3 XYZ = vector_dot(RGB_to_XYZ_output, luminanceRGB);
-    float3 JMh = XYZ_to_JMh(XYZ, limitWhite, d65White, viewingConditions, L_A_out, Y_b_out, discountIlluminant_out,HK_mode_out);
+    float3 JMh = XYZ_to_JMh(XYZ, limitWhite, viewingConditions, L_A_out, Y_b_out, discountIlluminant_out,HK_mode_out);
     return JMh;
   }
 
@@ -1008,7 +1005,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
   float3 luminance_RGB_to_JMh(float3 luminanceRGB)
   {
     float3 XYZ = vector_dot(RGB_to_XYZ_output, luminanceRGB);
-    float3 JMh = XYZ_to_JMh(XYZ, refWhite, d65White, outputViewingConditions, L_A, Y_b, discountIlluminant_mid, HK_mode_mid);
+    float3 JMh = XYZ_to_JMh(XYZ, refWhite, outputViewingConditions, L_A, Y_b, discountIlluminant_mid, HK_mode_mid);
     return JMh;
   }
 
@@ -1016,7 +1013,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
   // convert CAM J (lightness), M (colorfulness) and h (hue) correlates to  RGB values in the output colorspace
   float3 JMh_to_output_RGB(float3 JMh)
   {
-    float3 luminanceXYZ = JMh_to_XYZ( JMh, limitWhite, d65White, outputViewingConditions , L_A_out, Y_b_out, discountIlluminant_out, HK_mode_out);
+    float3 luminanceXYZ = JMh_to_XYZ( JMh, limitWhite, outputViewingConditions , L_A_out, Y_b_out, discountIlluminant_out, HK_mode_out);
 
     // switch to treat incoming data as luminanceXYZ when in breakout mode
     if (diagnosticMode == 105)
@@ -1060,7 +1057,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
   // convert CAM J (lightness), M (colorfulness) and h (hue) correlates to  RGB values in the output colorspace
   float3 JMh_to_luminance_RGB(float3 JMh)
   {
-      float3 luminanceXYZ = JMh_to_XYZ( JMh, refWhite, d65White, outputViewingConditions , L_A, Y_b, discountIlluminant_mid, HK_mode_mid);
+      float3 luminanceXYZ = JMh_to_XYZ( JMh, refWhite, outputViewingConditions , L_A, Y_b, discountIlluminant_mid, HK_mode_mid);
       float3 luminanceRGB = vector_dot(XYZ_to_RGB_output, luminanceXYZ);
 
       return luminanceRGB;
@@ -1072,7 +1069,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
   {
     float3 luminanceRGB = RGB * boundaryRGB *referenceLuminance;
     float3 XYZ = vector_dot(RGB_to_XYZ_limit, luminanceRGB);
-    float3 JMh = XYZ_to_JMh(XYZ, refWhite, d65White, viewingConditions, L_A, Y_b, discountIlluminant_mid, HK_mode_mid);
+    float3 JMh = XYZ_to_JMh(XYZ, refWhite, viewingConditions, L_A, Y_b, discountIlluminant_mid, HK_mode_mid);
     return JMh;
   }
 
@@ -1081,7 +1078,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     {
       float3 luminanceRGB = RGB * boundaryRGB *referenceLuminance;
       float3 XYZ = vector_dot(RGB_to_XYZ_reach, luminanceRGB);
-      float3 JMh = XYZ_to_JMh(XYZ, refWhite, d65White, viewingConditions, L_A, Y_b, discountIlluminant_mid, HK_mode_mid);
+      float3 JMh = XYZ_to_JMh(XYZ, refWhite, viewingConditions, L_A, Y_b, discountIlluminant_mid, HK_mode_mid);
       return JMh;
     }
 
@@ -1090,7 +1087,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
   {
     float3 luminanceRGB = RGB * boundaryRGB *referenceLuminance;
     float3 XYZ = vector_dot(AP1_to_XYZ, luminanceRGB);
-    float3 JMh = XYZ_to_JMh(XYZ, refWhite, d65White, viewingConditions, L_A, Y_b, discountIlluminant_mid, HK_mode_mid);
+    float3 JMh = XYZ_to_JMh(XYZ, refWhite, viewingConditions, L_A, Y_b, discountIlluminant_mid, HK_mode_mid);
     return JMh;
   }
 
@@ -1098,7 +1095,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
   // convert CAM J (lightness), M (colorfulness) and h (hue) correlates to linear RGB values with the limiting primaries
   float3 JMh_to_limit_RGB(float3 JMh)
   {
-    float3 luminanceXYZ = JMh_to_XYZ( JMh, refWhite, d65White, viewingConditions, L_A, Y_b, discountIlluminant_mid, HK_mode_mid );
+    float3 luminanceXYZ = JMh_to_XYZ( JMh, refWhite, viewingConditions, L_A, Y_b, discountIlluminant_mid, HK_mode_mid );
 //     float3 luminanceRGB = vector_dot(XYZ_to_RGB_output, luminanceXYZ); // this seems wrong, should be XYZ_to_RGB_limit?
     float3 luminanceRGB = vector_dot(XYZ_to_RGB_limit, luminanceXYZ); // NS changed to XYZ_to_RGB_limit, 2023-11-24
     float3 RGB = luminanceRGB / boundaryRGB / referenceLuminance;
@@ -1108,7 +1105,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     // convert CAM J (lightness), M (colorfulness) and h (hue) correlates to linear RGB values with the reach primaries
     float3 JMh_to_reach_RGB(float3 JMh)
     {
-        float3 luminanceXYZ = JMh_to_XYZ( JMh, refWhite, d65White, viewingConditions, L_A, Y_b, discountIlluminant_mid, HK_mode_mid );
+        float3 luminanceXYZ = JMh_to_XYZ( JMh, refWhite, viewingConditions, L_A, Y_b, discountIlluminant_mid, HK_mode_mid );
         float3 luminanceRGB = vector_dot(XYZ_to_RGB_reach, luminanceXYZ);
         float3 RGB = luminanceRGB / boundaryRGB / referenceLuminance;
         return RGB;
@@ -1717,7 +1714,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     // convert to linear XYZ luminance values
     float3 luminanceRGB = encodingToLuminance3( encodingIn, inputRGB);
     float3 luminanceXYZ = vector_dot(RGB_to_XYZ_input, luminanceRGB);
-    float3 JMh = XYZ_to_JMh(luminanceXYZ, inWhite, d65White, viewingConditions, L_A, Y_b, discountIlluminant_in, HK_mode_in);
+    float3 JMh = XYZ_to_JMh(luminanceXYZ, inWhite, viewingConditions, L_A, Y_b, discountIlluminant_in, HK_mode_in);
 
     if (diagnosticMode == 6 || diagnosticMode == 100)
     {
@@ -1732,7 +1729,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
 
   float3 JMh_to_input_RGB(float3 JMh)
   {
-    float3 luminanceXYZ = JMh_to_XYZ( JMh, inWhite, d65White, viewingConditions , L_A, Y_b, discountIlluminant_in, HK_mode_in);
+    float3 luminanceXYZ = JMh_to_XYZ( JMh, inWhite, viewingConditions , L_A, Y_b, discountIlluminant_in, HK_mode_in);
     float3 luminanceRGB = vector_dot(XYZ_to_RGB_input, luminanceXYZ);
     float3 inputRGB = luminanceToEncoding3( encodingIn, luminanceRGB);
 
@@ -2245,7 +2242,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
       return JMh;
     }
 
-    float MidJ = XYZ_to_JMh( refWhite * daniele_c_t * mmScaleFactor, refWhite, d65White, outputViewingConditions, L_A_out, Y_b_out, discountIlluminant_mid, HK_mode_mid).x;
+    float MidJ = XYZ_to_JMh( refWhite * daniele_c_t * mmScaleFactor, refWhite, outputViewingConditions, L_A_out, Y_b_out, discountIlluminant_mid, HK_mode_mid).x;
 
     // recasting for compatability with non iterative code
     float2 JMinput = float2(JMh.x, JMh.y);
@@ -2293,7 +2290,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
 
     float startStepSize = lerp(JMcusp.y / 3.0f, 0.1f, cuspToTipRatio);
 
-    float2 JMboundary = findBoundary(JMinput, JMfocus,  JMh.z, refWhite, d65White, XYZ_to_RGB_limit, smoothCusps, iterativeGamutCompressorIterations, startStepSize);
+    float2 JMboundary = findBoundary(JMinput, JMfocus,  JMh.z, refWhite, XYZ_to_RGB_limit, smoothCusps, iterativeGamutCompressorIterations, startStepSize);
     float normFact = 1.0f / max(0.0001f, length(JMboundary - achromaticIntercept));
     // float v = length(JMinput-achromaticIntercept) * normFact;
 
@@ -2351,7 +2348,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
   // the function will search outwards from where the line intersects the achromatic axis with a staring incement of 'startStepSize'
   // once the boundary has been crossed it will search in the opposite direction with half the step size
   // and will repeat this as as many times as is set by the 'precision' paramter
-  float2 findBoundary(float2 JMSource, float2 JMFocus, float h, float3 XYZw, float3 XYZd65, float3x3 XYZ_to_RGB, float smoothing, int precision, float startStepSize )
+  float2 findBoundary(float2 JMSource, float2 JMFocus, float h, float3 XYZw, float3x3 XYZ_to_RGB, float smoothing, int precision, float startStepSize )
   {
 
     float2 achromaticIntercept = float2(JMFocus.x - (((JMSource.x-JMFocus.x) / (JMSource.y-JMFocus.y))*JMFocus.y), 0.0f);
@@ -2373,7 +2370,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
       for( int k = 0; k < 30; ++k )
       {
         JMtest = JMtest + unitVector * stepSize;
-        int inside = isInsideCube( vector_dot(XYZ_to_RGB, JMh_to_XYZ( float3(JMtest.x, JMtest.y, h), XYZw, XYZd65, outputViewingConditions , L_A, Y_b, discountIlluminant_mid, HK_mode_mid) / referenceLuminance ), boundaryRGB, smoothing);
+        int inside = isInsideCube( vector_dot(XYZ_to_RGB, JMh_to_XYZ( float3(JMtest.x, JMtest.y, h), XYZw, outputViewingConditions , L_A, Y_b, discountIlluminant_mid, HK_mode_mid) / referenceLuminance ), boundaryRGB, smoothing);
 
         if( searchOutwards )
         {
@@ -2714,7 +2711,6 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     XYZ_to_RGB_sRGB.setArray(XYZ_to_Rec709_D65_matrix_data);
     float3 white(1.0f, 1.0f, 1.0f);
 
-    d65White = vector_dot(XYZ_to_RGB_sRGB.invert(), white);
     inWhite = vector_dot(RGB_to_XYZ_input, white);
     outWhite = vector_dot(RGB_to_XYZ_output, white);
     refWhite = vector_dot(RGB_to_XYZ_limit, white);
@@ -2884,7 +2880,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     // limitJmax (asumed to match limitRGB white)
     limitJmax = limit_RGB_to_JMh(float3(1.0f)).x;
 
-    midJ = XYZ_to_JMh(refWhite * daniele_c_t * mmScaleFactor, refWhite, d65White, outputViewingConditions, L_A_out, Y_b_out, discountIlluminant_mid, HK_mode_mid).x;
+    midJ = XYZ_to_JMh(refWhite * daniele_c_t * mmScaleFactor, refWhite, outputViewingConditions, L_A_out, Y_b_out, discountIlluminant_mid, HK_mode_mid).x;
     
     // Cusp table for AP1 gamut
     {
@@ -2979,11 +2975,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     {
       diagnostic =  limitWhite;
     }
-    else if ( diagnosticMode == 11)
-    {
-      diagnostic =  d65White;
-    }
-    else if (diagnosticMode == 12)
+     else if (diagnosticMode == 12)
     {
       // output gamut boundry
       diagnostic = compressGamut(srcRGB, 1);
@@ -3053,7 +3045,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     else if (diagnosticMode == 102)
     {
       // convert luminanceXYZ to JMh
-      diagnostic = XYZ_to_JMh(srcRGB, inWhite, d65White, viewingConditions, L_A, Y_b, discountIlluminant_in, HK_mode_in);
+      diagnostic = XYZ_to_JMh(srcRGB, inWhite, viewingConditions, L_A, Y_b, discountIlluminant_in, HK_mode_in);
     }
 
     else if (diagnosticMode == 103)
@@ -3071,7 +3063,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     else if (diagnosticMode == 105)
     {
       // JMh to luminance XYZ
-      diagnostic = JMh_to_XYZ( srcRGB, limitWhite, d65White, outputViewingConditions , L_A_out, Y_b_out, discountIlluminant_out, HK_mode_out);
+      diagnostic = JMh_to_XYZ( srcRGB, limitWhite, outputViewingConditions , L_A_out, Y_b_out, discountIlluminant_out, HK_mode_out);
     }
 
     else if (diagnosticMode == 106)
@@ -3107,7 +3099,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     else if (diagnosticMode == 202)
     {
         // output XYZ to JMh
-        diagnostic = XYZ_to_JMh(srcRGB, limitWhite, d65White, viewingConditions, L_A_out, Y_b_out, discountIlluminant_out,HK_mode_out);
+        diagnostic = XYZ_to_JMh(srcRGB, limitWhite, viewingConditions, L_A_out, Y_b_out, discountIlluminant_out,HK_mode_out);
     }
     
     
@@ -3126,7 +3118,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     else if (diagnosticMode == 205)
     {
         // inverted JMh back to XYZ
-        diagnostic = JMh_to_XYZ( srcRGB, inWhite, d65White, viewingConditions , L_A, Y_b, discountIlluminant_in, HK_mode_in);
+        diagnostic = JMh_to_XYZ( srcRGB, inWhite, viewingConditions , L_A, Y_b, discountIlluminant_in, HK_mode_in);
     }
     else if (diagnosticMode == 206)
     {
