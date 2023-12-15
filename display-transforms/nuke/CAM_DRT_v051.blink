@@ -554,46 +554,37 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     return xyz_temp;
   }
 
-float3 uncompress_bjorn(float3 xyz)
-{
-  float C = (xyz.x+xyz.y+xyz.z)/3;
-
-  float3 xyz_temp = xyz - C;
-  float R = hypot_float3(xyz_temp);
-
-  if (R == 0.0f || C == 0.0f)
-    return xyz;
-
-  R = R * 0.816496580927726;     // sqrt(2/3)
-
-  xyz_temp = xyz_temp / R;
-
-  float t = C/R;
-  t = t -0.5f;
- 
-  float s = -min(xyz_temp.x, min(xyz_temp.y, xyz_temp.z));
-  s = s -0.5f;
-
-  float r = 2 * sqrt(fabs(t*t - s*s)) + 1;
-  r = sqrt(fabs(r*r - 1));
-  if (r == 0.0)
-    return xyz;
-  r = C * 2/r;
-
-  xyz_temp = xyz_temp * r + C;
-
-  return xyz_temp;
-}
-
-  float3 compress(float3 rgb)
+  float3 uncompress_bjorn(float3 xyz)
   {
-    return compress_bjorn(rgb);
+    float C = (xyz.x+xyz.y+xyz.z)/3;
+
+    float3 xyz_temp = xyz - C;
+    float R = hypot_float3(xyz_temp);
+
+    if (R == 0.0f || C == 0.0f)
+      return xyz;
+
+    R = R * 0.816496580927726;     // sqrt(2/3)
+
+    xyz_temp = xyz_temp / R;
+
+    float t = C/R;
+    t = t -0.5f;
+  
+    float s = -min(xyz_temp.x, min(xyz_temp.y, xyz_temp.z));
+    s = s -0.5f;
+
+    float r = 2 * sqrt(fabs(t*t - s*s)) + 1;
+    r = sqrt(fabs(r*r - 1));
+    if (r == 0.0)
+      return xyz;
+    r = C * 2/r;
+
+    xyz_temp = xyz_temp * r + C;
+
+    return xyz_temp;
   }
 
-  float3 uncompress(float3 rgb)
-  {
-    return uncompress_bjorn(rgb);
-  }
 
   float hue_angle_dependency_Hellwig2022(float h)
   {
@@ -1213,7 +1204,7 @@ float3 uncompress_bjorn(float3 xyz)
 
         if (compressMode)
         {
-          RGB_c = compress(RGB_c);
+          RGB_c = compress_bjorn(RGB_c);
 //           RGB_c.x = max(RGB_c.x, 0.0f);
 //           RGB_c.y = max(RGB_c.y, 0.0f);
 //           RGB_c.z = max(RGB_c.z, 0.0f);
@@ -1223,7 +1214,7 @@ float3 uncompress_bjorn(float3 xyz)
 
         if (compressMode)
         {
-          RGB_a = uncompress(RGB_a);
+          RGB_a = uncompress_bjorn(RGB_a);
         }
 
         // # Step 4
@@ -1394,14 +1385,14 @@ float3 uncompress_bjorn(float3 xyz)
 
         if (compressMode)
         {
-          RGB_a = compress(RGB_a);
+          RGB_a = compress_bjorn(RGB_a);
         }
 
         float3 RGB_c = post_adaptation_non_linear_response_compression_inverse(RGB_a, F_L);
 
         if (compressMode)
         {
-          RGB_c = uncompress(RGB_c);
+          RGB_c = uncompress_bjorn(RGB_c);
         }
 
         // # Step 6
