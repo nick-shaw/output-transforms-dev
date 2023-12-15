@@ -1529,19 +1529,20 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
   float cusp_with_eccentricity_factor(float h)
   {
     float2 JMcusp = ccuspFromTable(h);
+    float hr = radians(h);
+
     float e_t = 1.0f;
 
     // CAM16
     if (cc_et == 0)
     {
       // NOTE: custom scaler 0.275 instead of 0.25 in CAM16
-      e_t = 0.275f * (cos(2.0f + h * PI / 180.0f) + 3.8f);
+      e_t = 0.275f * (cos(2.0f + hr) + 3.8f);
     }
     // Hellwig2022
     // CAM16 vs Hellwig2022: https://onlinelibrary.wiley.com/cms/asset/60788dfc-6bae-4949-bf8d-bd8c3467aef8/col22792-fig-0005-m.jpg
     else if (cc_et == 1)
     {
-      float hr = radians(h);
       float _h = hr;
       float _2_h = 2 * hr;
       float _3_h = 3 * hr;
@@ -1561,7 +1562,6 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     // Custom https://www.desmos.com/calculator/vukgp6rtos
     else if (cc_et == 2)
     {
-      float hr = radians(h);
       float hr2 = hr * 2;
       float hr3 = hr * 3;
       e_t = (-0.47f * cos(hr) +
