@@ -326,6 +326,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     float3 cgamutCuspTable[360];
     float3 cgamutReachTable[360];
     float gamutTopGamma[360];
+    float gamutBottomGamma[360];
     float LocusLimitMTable[360];
 
   void define()
@@ -1760,13 +1761,13 @@ float3 uncompress_bjorn(float3 xyz)
     int index = int(h);
     float t = (h - index);
     float gamma = 1.0f;
-    if (index < 359)
+    if (index < gamutCuspTableSize-1)
     {
         gamma = lerp(gamutTopGamma[index], gamutTopGamma[index+1], t);
     }
     else
     {
-        gamma = lerp(gamutTopGamma[359], gamutTopGamma[0], t);
+        gamma = lerp(gamutTopGamma[gamutCuspTableSize-1], gamutTopGamma[0], t);
     }
 
     return gamma;
@@ -1774,12 +1775,34 @@ float3 uncompress_bjorn(float3 xyz)
     // debugPrint(&gamma,1,1); 
   }
 
+  float hueDependantLowerHullGamma(float h)
+  {
+    if (disableUpperHullGamma)
+      return 1.0f;
+
+    // take float h, divide by 10, and lerp between index values from upperHullGamma_0
+    int index = int(h);
+    float t = (h - index);
+    float gamma = 1.0f;
+    if (index < gamutCuspTableSize-1)
+    {
+        gamma = lerp(gamutBottomGamma[index], gamutBottomGamma[index+1], t);
+    }
+    else
+    {
+        gamma = lerp(gamutBottomGamma[gamutCuspTableSize-1], gamutBottomGamma[0], t);
+    }
+
+    return gamma;
+  }
+
+
   // reimplemented from https://github.com/nick-shaw/aces-ot-vwg-experiments/blob/master/python/intersection_approx.py
-  float3 findGamutBoundaryIntersection(float3 JMh_s, float2 JM_cusp, float J_focus, float J_max, float slope_gain, float smoothness, float gamma_top)
+  float3 findGamutBoundaryIntersection(float3 JMh_s, float2 JM_cusp, float J_focus, float J_max, float slope_gain, float smoothness, float gamma_top, float gamma_bottom)
   {
     float2 JM_source = float2(JMh_s.x, JMh_s.y);
     // float gamma_top = hueDependantUpperHullGamma(JMh_s.z);
-    float gamma_bottom = lowerHullGamma;
+    // float gamma_bottom = lowerHullGamma;
 
     float slope = 0.0f;
 
@@ -2093,8 +2116,9 @@ float3 uncompress_bjorn(float3 xyz)
     else if (boundryIntersectionMethod == 2)
     {
         // findGamutBoundaryIntersection(float2      JM_source, float2 JM_cusp, float J_focus, float J_max, float slope_gain, float smoothness)
-        float gamma_top = hueDependantUpperHullGamma(JMh.z);
-        float3 nickBoundryReturn =  findGamutBoundaryIntersection(        JMh,         JMcusp,        focusJ,   limitJmax,       slope_gain, smoothCusps,gamma_top);
+        float gamma_top    = hueDependantUpperHullGamma(JMh.z);
+        float gamma_bottom = hueDependantLowerHullGamma(JMh.z);
+        float3 nickBoundryReturn =  findGamutBoundaryIntersection(        JMh,         JMcusp,        focusJ,   limitJmax,       slope_gain, smoothCusps,gamma_top, gamma_bottom);
         JMboundary = float2(nickBoundryReturn.x,nickBoundryReturn.y);
         project_to = float2(nickBoundryReturn.z,0.0f);
         projectJ = nickBoundryReturn.z;
@@ -2797,77 +2821,90 @@ float3 uncompress_bjorn(float3 xyz)
 
     midJ = XYZ_to_JMh(refWhite * daniele_c_t * mmScaleFactor, refWhite, outputViewingConditions, L_A_out, Y_b_out, discountIlluminant_mid, HK_mode_mid).x;
 
-    // quick test to see why table isn't getting populated
-    // gamutTopGamma[0] = 1.0f;
-
-    // limitJmax (asumed to match limitRGB white)
-    // limitJmax = limit_RGB_to_JMh(float3(1.0f)).x;
 
     // Find upper hull gamma values for the gamut mapper
     // start by taking a h angle
     // get the cusp J value for that angle
     // find a J value halfway to the Jmax
     // iterate through gamma values until the approxilate max M is negative through the actual boundry
-
  
     for( int i = 0; i < gamutCuspTableSize; ++i )
     {
-     
-     gamutTopGamma[i] = 1.0f;
-    //  gamutTopGamma[0] = 2.0f;
-    //  float3 cusp = gamutCuspTable[i];
+    //  default value. This will get overridden as we loop, but can be a good diagnostic to make sure things are working
+     gamutTopGamma[i] = 0.5f;
+      // get cusp from cusp table at hue position
      float2 JMcusp = cuspFromTable(float(i));
      // create test value halfway betwen the cusp and the Jmax
-    //  float2 JMcusp = float2(gamutCuspTable[i].x, gamutCuspTable[i].y);
      float slope_gain = limitJmax * focusDistance;
-
-     float3 testJmh0 = float3(JMcusp.x + ((limitJmax - JMcusp.x) * 0.01f ), JMcusp.y , float(i));
-     float3 testJmh1 = float3(JMcusp.x + ((limitJmax - JMcusp.x) * 0.5f  ), JMcusp.y , float(i));
-     float3 testJmh2 = float3(JMcusp.x + ((limitJmax - JMcusp.x) * 0.99f ), JMcusp.y , float(i));
-
-     float3 testJmhValues[3];
-
-     testJmhValues[0] = testJmh0;
-     testJmhValues[1] = testJmh1;
-     testJmhValues[2] = testJmh2;
-     bool gammaFound0 = false;
-     bool gammaFound1 = false;
-     bool gammaFound2 = false;
-     //  float maxRGBtestVal = daniele_m_0;
+    // positions between the cusp and Jmax we will check
+     float testPositions[] = {0.01f,0.5f,0.99f};
+    // variables that get set as we iterate through, once all 3 are set to true we break the loop
+     bool gammaFound[3] = {false};
+     // limit value, once we cross this value, we are outside of the top gamut shell 
      float maxRGBtestVal = 1.0f;
-    //  for (testJmh in testJmhValues);
+     // Tg is Test Gamma. the values are shifted two decimal points to the left. Tg 70 = Gamma 0.7
      for( int Tg = 70; Tg < 170; ++Tg )
      {
-          // float sampleM = float(M);
+        // topGamma value created from the Tg variable
         float topGamma = float(Tg) / 100.0f;
-
-        // brute force because I'm bad at writing loops
-        float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh0,         JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend),   limitJmax,       slope_gain,      0.0f,       topGamma);
-        float3 newLimitRGB = JMh_to_limit_RGB(float3(approxLimit.x, approxLimit.y, float(i)));
-        if (newLimitRGB.x > maxRGBtestVal || newLimitRGB.y > maxRGBtestVal || newLimitRGB.z > maxRGBtestVal)
+        // loop to run through each of the positions defined in the testPositions list
+        for ( int testIndex = 0 ; testIndex < 3 ; ++testIndex )
         {
-            gamutTopGamma[i] = topGamma;
-            gammaFound0 = true;
-        }
+                  float3 testJmh = float3(JMcusp.x + ((limitJmax - JMcusp.x) * testPositions[testIndex] ), JMcusp.y , float(i));
+                  float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh,         JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend),   limitJmax,       slope_gain,      0.0f,       topGamma, 1.0f);
+                  float3 newLimitRGB = JMh_to_limit_RGB(float3(approxLimit.x, approxLimit.y, float(i)));
+                  // if any channel has broken through the top gamut hull, break
+                  if (newLimitRGB.x > maxRGBtestVal || newLimitRGB.y > maxRGBtestVal || newLimitRGB.z > maxRGBtestVal)
+                  {
+                      gamutTopGamma[i] = topGamma;
+                      gammaFound[testIndex] = true;
+                  }
 
-        // brute force because I'm bad at writing loops
-        approxLimit  =  findGamutBoundaryIntersection(        testJmh1,         JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend),   limitJmax,       slope_gain,      0.0f,       topGamma);
-        newLimitRGB = JMh_to_limit_RGB(float3(approxLimit.x, approxLimit.y, float(i)));
-        if (newLimitRGB.x > maxRGBtestVal || newLimitRGB.y > maxRGBtestVal || newLimitRGB.z > maxRGBtestVal)
-        {
-            gamutTopGamma[i] = topGamma;
-            gammaFound1 = true;
         }
+        // once all 3 of the test
+        if (gammaFound[0] && gammaFound[1] && gammaFound[2])
+        {
+            break;
+        }
+      }
+    }
 
-        // brute force because I'm bad at writing loops
-        approxLimit  =  findGamutBoundaryIntersection(        testJmh2,         JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend),   limitJmax,       slope_gain,      0.0f,       topGamma);
-        newLimitRGB = JMh_to_limit_RGB(float3(approxLimit.x, approxLimit.y, float(i)));
-        if (newLimitRGB.x > maxRGBtestVal || newLimitRGB.y > maxRGBtestVal || newLimitRGB.z > maxRGBtestVal)
+    // Same process, for the bottom hull gamma
+    for( int i = 0; i < gamutCuspTableSize; ++i )
+    {
+    //  default value. This will get overridden as we loop, but can be a good diagnostic to make sure things are working
+     gamutBottomGamma[i] = 0.5f;
+      // get cusp from cusp table at hue position
+     float2 JMcusp = cuspFromTable(float(i));
+     // create test value halfway betwen the cusp and the Jmax
+     float slope_gain = limitJmax * focusDistance;
+    // positions between the cusp and Jmax we will check
+     float testPositions[] = {0.25f,0.5f,0.75f};
+    // variables that get set as we iterate through, once all 3 are set to true we break the loop
+     bool gammaFound[3] = {false};
+     // limit value, once we cross this value, we are outside of the top gamut shell 
+     float maxRGBtestVal = 1.0f;
+     // Tg is Test Gamma. the values are shifted two decimal points to the left. Tg 70 = Gamma 0.7
+     for( int Bg = 70; Bg < 170; ++Bg )
+     {
+        // topGamma value created from the Tg variable
+        float bottomGamma = float(Bg) / 100.0f;
+        // loop to run through each of the positions defined in the testPositions list
+        for ( int testIndex = 0 ; testIndex < 3 ; ++testIndex )
         {
-            gamutTopGamma[i] = topGamma;
-            gammaFound2 = true;
+                  float3 testJmh = float3( ((JMcusp.x) * testPositions[testIndex] ) , JMcusp.y , float(i));
+                  float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh,         JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend),   limitJmax,       slope_gain,      0.0f,       1.0f,bottomGamma);
+                  float3 newLimitRGB = JMh_to_limit_RGB(float3(approxLimit.x, approxLimit.y, float(i)));
+                  // if any channel has broken through the bottom gamut hull, break
+                  if (newLimitRGB.x < 0.0 || newLimitRGB.y < 0.0 || newLimitRGB.z < 0.0)
+                  {
+                    gamutBottomGamma[i] = bottomGamma;
+                      gammaFound[testIndex] = true;
+                  }
+
         }
-        if (gammaFound0 && gammaFound1 && gammaFound2)
+        // once all 3 of the test
+        if (gammaFound[0] && gammaFound[1] && gammaFound[2])
         {
             break;
         }
@@ -3037,7 +3074,7 @@ float3 uncompress_bjorn(float3 xyz)
    //  float2 JMcusp = float2(gamutCuspTable[i].x, gamutCuspTable[i].y);
     float slope_gain = limitJmax * focusDistance;
     float3 testJmh = float3(JMcusp.x + ((limitJmax - JMcusp.x) / 2.0f ), JMcusp.y , srcRGB.z);
-    float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh,         JMcusp,(JMcusp.x+38.0f)/2,   limitJmax,       slope_gain,      smoothCusps,       upperHullGamma[0]);
+    float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh,         JMcusp,(JMcusp.x+38.0f)/2,   limitJmax,       slope_gain,      smoothCusps,       upperHullGamma[0],hueDependantLowerHullGamma(srcRGB.z));
     diagnostic = float3(approxLimit.x, approxLimit.y, srcRGB.z);
     }
 
@@ -3048,7 +3085,7 @@ float3 uncompress_bjorn(float3 xyz)
    //  float2 JMcusp = float2(gamutCuspTable[i].x, gamutCuspTable[i].y);
     float slope_gain = limitJmax * focusDistance;
     float3 testJmh = float3(JMcusp.x + ((limitJmax - JMcusp.x) / 2.0f ), JMcusp.y , srcRGB.z);
-    float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh,         JMcusp,(JMcusp.x+38.0f)/2,   limitJmax,       slope_gain,      smoothCusps,       upperHullGamma[0]);
+    float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh,         JMcusp,(JMcusp.x+38.0f)/2,   limitJmax,       slope_gain,      smoothCusps,       upperHullGamma[0],hueDependantLowerHullGamma(srcRGB.z));
     float3 newLimitRGB = JMh_to_limit_RGB(float3(approxLimit.x, approxLimit.y, srcRGB.z));
     diagnostic = newLimitRGB;
     }
@@ -3059,7 +3096,7 @@ float3 uncompress_bjorn(float3 xyz)
       float slope_gain = limitJmax * focusDistance;
       float focusJ = lerp(JMcusp.x, midJ, cuspMidBlend);
       float gamma_top = hueDependantUpperHullGamma(srcRGB.z);
-      float3 nickBoundryReturn =  findGamutBoundaryIntersection(        srcRGB,         JMcusp,        focusJ,   limitJmax,       slope_gain, smoothCusps,gamma_top);
+      float3 nickBoundryReturn =  findGamutBoundaryIntersection(        srcRGB,         JMcusp,        focusJ,   limitJmax,       slope_gain, smoothCusps,gamma_top,hueDependantLowerHullGamma(srcRGB.z));
       diagnostic = float3(srcRGB.x,nickBoundryReturn.y,srcRGB.z);
     }
     else if (diagnosticMode == 26)
@@ -3067,6 +3104,12 @@ float3 uncompress_bjorn(float3 xyz)
         // XYZ back to luminance RGB
         float3 JMh = JMh_to_XYZ( srcRGB, limitWhite, outputViewingConditions , L_A_out, Y_b_out, discountIlluminant_out, HK_mode_out);
         diagnostic = vector_dot(XYZ_to_RGB_limit, JMh);
+    }
+    else if (diagnosticMode == 27)
+    {
+      // output 
+      diagnostic = float3(hueDependantLowerHullGamma(srcRGB.z),0.0f,0.0f);
+      // diagnostic = float3(gamutTopGamma[0],LocusLimitMTable[0],limitJmax);
     }
 
 
