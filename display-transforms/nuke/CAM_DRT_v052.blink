@@ -3021,6 +3021,18 @@ float3 uncompress_bjorn(float3 xyz)
     diagnostic = newLimitRGB;
     }
 
+    else if (diagnosticMode == 25)
+    {
+      float2 JMcusp = cuspFromTable(srcRGB.z);
+      float slope_gain = limitJmax * focusDistance;
+      float focusJ = lerp(JMcusp.x, midJ, cuspMidBlend);
+      float gamma_top = hueDependantUpperHullGamma(srcRGB.z);
+      float3 nickBoundryReturn =  findGamutBoundaryIntersection(        srcRGB,         JMcusp,        focusJ,   limitJmax,       slope_gain, smoothCusps,gamma_top);
+      diagnostic = float3(srcRGB.x,nickBoundryReturn.y,srcRGB.z);
+    }
+
+
+
 
     // extra modes to allow for easier breakout of the order of events.
     // modes starting with 100
