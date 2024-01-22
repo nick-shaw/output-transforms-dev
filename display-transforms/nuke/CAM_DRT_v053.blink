@@ -140,9 +140,11 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
 
     int boundryIntersectionMethod;
     // 36 gamut parameters
-    float upperHullGamma[36];
+    // float upperHullGamma[36];
     bool disableUpperHullGamma;
+    bool disableLowerHullGamma;
     float lowerHullGamma;
+    float upperHullGamma;
 
     // How much the edges of the target RGB cube are smoothed when finding the gamut boundary 
     // in order to reduce visible contours at the gamut cusps
@@ -1755,7 +1757,7 @@ float3 uncompress_bjorn(float3 xyz)
   float hueDependantUpperHullGamma(float h)
   {
     if (disableUpperHullGamma)
-      return 1.0f;
+      return upperHullGamma;
 
     // take float h, divide by 10, and lerp between index values from upperHullGamma_0
     int index = int(h);
@@ -1777,8 +1779,8 @@ float3 uncompress_bjorn(float3 xyz)
 
   float hueDependantLowerHullGamma(float h)
   {
-    if (disableUpperHullGamma)
-      return 1.0f;
+    if (disableLowerHullGamma)
+      return lowerHullGamma;
 
     // take float h, divide by 10, and lerp between index values from upperHullGamma_0
     int index = int(h);
@@ -2142,8 +2144,8 @@ float3 uncompress_bjorn(float3 xyz)
     // Compress the out of gamut color along the projection line
     float2 JMcompressed = project_from;
 
-//     if (JMh.x < limitJmax && JMboundary.y != 0.0f)
-    if (JMh.x < limitJmax && JMh.y != 0.0f)
+    float lowerMlimit = 0.0001f; // Testing a small value here
+    if (JMh.x < limitJmax && JMh.y > lowerMlimit) // using a small value to test against here rather than 0.0, and I was getting Nans on inversion.
     {
         float v = project_from.y / JMboundary.y;
         v = compressPowerP(v, interpolatedCompressionFuncParams.x,
@@ -3074,7 +3076,7 @@ float3 uncompress_bjorn(float3 xyz)
    //  float2 JMcusp = float2(gamutCuspTable[i].x, gamutCuspTable[i].y);
     float slope_gain = limitJmax * focusDistance;
     float3 testJmh = float3(JMcusp.x + ((limitJmax - JMcusp.x) / 2.0f ), JMcusp.y , srcRGB.z);
-    float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh,         JMcusp,(JMcusp.x+38.0f)/2,   limitJmax,       slope_gain,      smoothCusps,       upperHullGamma[0],hueDependantLowerHullGamma(srcRGB.z));
+    float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh,         JMcusp,(JMcusp.x+38.0f)/2,   limitJmax,       slope_gain,      smoothCusps,       hueDependantUpperHullGamma(srcRGB.z),hueDependantLowerHullGamma(srcRGB.z));
     diagnostic = float3(approxLimit.x, approxLimit.y, srcRGB.z);
     }
 
@@ -3085,7 +3087,7 @@ float3 uncompress_bjorn(float3 xyz)
    //  float2 JMcusp = float2(gamutCuspTable[i].x, gamutCuspTable[i].y);
     float slope_gain = limitJmax * focusDistance;
     float3 testJmh = float3(JMcusp.x + ((limitJmax - JMcusp.x) / 2.0f ), JMcusp.y , srcRGB.z);
-    float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh,         JMcusp,(JMcusp.x+38.0f)/2,   limitJmax,       slope_gain,      smoothCusps,       upperHullGamma[0],hueDependantLowerHullGamma(srcRGB.z));
+    float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh,         JMcusp,(JMcusp.x+38.0f)/2,   limitJmax,       slope_gain,      smoothCusps,       hueDependantUpperHullGamma(srcRGB.z),hueDependantLowerHullGamma(srcRGB.z));
     float3 newLimitRGB = JMh_to_limit_RGB(float3(approxLimit.x, approxLimit.y, srcRGB.z));
     diagnostic = newLimitRGB;
     }
@@ -3095,8 +3097,7 @@ float3 uncompress_bjorn(float3 xyz)
       float2 JMcusp = cuspFromTable(srcRGB.z);
       float slope_gain = limitJmax * focusDistance;
       float focusJ = lerp(JMcusp.x, midJ, cuspMidBlend);
-      float gamma_top = hueDependantUpperHullGamma(srcRGB.z);
-      float3 nickBoundryReturn =  findGamutBoundaryIntersection(        srcRGB,         JMcusp,        focusJ,   limitJmax,       slope_gain, smoothCusps,gamma_top,hueDependantLowerHullGamma(srcRGB.z));
+      float3 nickBoundryReturn =  findGamutBoundaryIntersection(        srcRGB,         JMcusp,        focusJ,   limitJmax,       slope_gain, smoothCusps,       hueDependantUpperHullGamma(srcRGB.z),hueDependantLowerHullGamma(srcRGB.z));
       diagnostic = float3(srcRGB.x,nickBoundryReturn.y,srcRGB.z);
     }
     else if (diagnosticMode == 26)
