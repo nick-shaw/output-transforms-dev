@@ -2853,7 +2853,7 @@ float3 uncompress_bjorn(float3 xyz)
         for ( int testIndex = 0 ; testIndex < 3 ; ++testIndex )
         {
                   float3 testJmh = float3(JMcusp.x + ((limitJmax - JMcusp.x) * testPositions[testIndex] ), JMcusp.y , float(i));
-                  float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh,         JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend),   limitJmax,       slope_gain,      0.0f,       topGamma, 1.0f);
+                  float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh,         JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend),   limitJmax,       10000.0f,      0.0f,       topGamma, 1.0f);
                   float3 newLimitRGB = JMh_to_limit_RGB(float3(approxLimit.x, approxLimit.y, float(i)));
                   // if any channel has broken through the top gamut hull, break
                   if (newLimitRGB.x > maxRGBtestVal || newLimitRGB.y > maxRGBtestVal || newLimitRGB.z > maxRGBtestVal)
@@ -2895,7 +2895,7 @@ float3 uncompress_bjorn(float3 xyz)
         for ( int testIndex = 0 ; testIndex < 3 ; ++testIndex )
         {
                   float3 testJmh = float3( ((JMcusp.x) * testPositions[testIndex] ) , JMcusp.y , float(i));
-                  float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh,         JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend),   limitJmax,       slope_gain,      0.0f,       1.0f,bottomGamma);
+                  float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh,         JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend),   limitJmax,       10000.0f,      0.0f,       1.0f,bottomGamma);
                   float3 newLimitRGB = JMh_to_limit_RGB(float3(approxLimit.x, approxLimit.y, float(i)));
                   // if any channel has broken through the bottom gamut hull, break
                   if (newLimitRGB.x < 0.0 || newLimitRGB.y < 0.0 || newLimitRGB.z < 0.0)
@@ -3112,7 +3112,18 @@ float3 uncompress_bjorn(float3 xyz)
       diagnostic = float3(hueDependantLowerHullGamma(srcRGB.z),0.0f,0.0f);
       // diagnostic = float3(gamutTopGamma[0],LocusLimitMTable[0],limitJmax);
     }
+    else if (diagnosticMode == 28)
+    {
+      // output 
+      float2 JMcusp = cuspFromTable(srcRGB.z);
+      diagnostic = findGamutBoundaryIntersection(        srcRGB,         JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend),   limitJmax,       10000.0f,      0.0f,       hueDependantUpperHullGamma(srcRGB.z),hueDependantLowerHullGamma(srcRGB.z));
 
+      // diagnostic = float3(gamutTopGamma[0],LocusLimitMTable[0],limitJmax);
+    }
+
+
+
+ 
 
 
 
