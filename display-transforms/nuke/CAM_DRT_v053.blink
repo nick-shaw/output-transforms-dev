@@ -1583,7 +1583,7 @@ float3 uncompress_bjorn(float3 xyz)
     float nJ = JMh.x / limitJmax;
     float snJ = max(0.0f, 1.0f - nJ);
     float Mnorm = cusp_with_eccentricity_factor(JMh.z);
-    float limit = pow(nJ, 1.0f / lowerHullGamma) * cReachFromTable(JMh.z) / Mnorm;
+    float limit = pow(nJ, model_gamma) * cReachFromTable(JMh.z) / Mnorm;
 
     if (!invert)
     {
@@ -1816,8 +1816,8 @@ float3 uncompress_bjorn(float3 xyz)
     float slope = 0.0f;
 
     float s = max(0.000001f, smoothness);
-    JM_cusp.x *= 1.0f + 0.06f * s;   // J
-    JM_cusp.y *= 1.0f + 0.18f * s;   // M
+    JM_cusp.x *= 1.0f + 0.055f * s;   // J
+    JM_cusp.y *= 1.0f + 0.183f * s;   // M
 
     float J_intersect_source = solve_J_intersect(JM_source, J_focus, J_max, slope_gain);
     float J_intersect_cusp = solve_J_intersect(JM_cusp, J_focus, J_max, slope_gain);
@@ -1980,7 +1980,7 @@ float3 uncompress_bjorn(float3 xyz)
 	  {
 			slope = (limitJmax - intersectJ) * (intersectJ - focusJ) / (focusJ * slope_gain);
 	  } 
-      float boundaryNick = limitJmax * pow(intersectJ/limitJmax, 1.0f / lowerHullGamma) * reachMaxM / (limitJmax - slope * reachMaxM);
+      float boundaryNick = limitJmax * pow(intersectJ/limitJmax, model_gamma) * reachMaxM / (limitJmax - slope * reachMaxM);
       return float3(Jmh.x,boundaryNick,Jmh.z);
     }
     float cuspTarget = reachMaxM * pow((Jmh.x/limitJmax), model_gamma);
