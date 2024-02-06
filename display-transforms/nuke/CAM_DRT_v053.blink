@@ -71,6 +71,8 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
 
     // Chroma compression params (limit, k1, k2)
     float chroma_compress;
+    float chroma_expand;
+    float chroma_expand_thr;
     int cc_et;
     int ccReach;
     // xy coordintes for chroma compression gamut
@@ -114,6 +116,12 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     // Toggle Gamut Compression
     bool applyGamutCompression;
 
+    // the 1D LUT used for quickly findig the approximate limiting gamut cusp JMh coordinates
+    // the samples are spaced by HSV hue increments of the limiting RGB gamut
+    // so to find the correct entry for a given CAM hue (h) value 
+    // one must search the table entries for the matching entry.z component
+    int gamutCuspTableSize;
+
     // Blend Between Compressing towards
     // Target Gamut Cusp Luminance (0.0)
     // and Mid Luminance (1.0)
@@ -121,6 +129,10 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
 
     // Focus distance of the compression focal point from the achromatic axis
     float focusDistance;
+    float focusAdjustGain;
+    float focusGainBlend;
+    bool disableFocusGain;
+    bool disableFocusDistScaling;
 
     // Gamut Compression Fuction Parameters
     // Threshold / min Limit / max Limit / Power
@@ -135,8 +147,6 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     bool Reachcompressmode;
     bool reachNick;
     bool Locuscompressmode;
-    bool iterativeGamutCompressor;
-    int iterativeGamutCompressorIterations;
 
     int boundryIntersectionMethod;
     // 36 gamut parameters
@@ -257,6 +267,9 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     float sat;        // Saturation
     float sat_thr;    // Threshold to start expanding saturation
 
+    // Gamut mapper constants
+    float focusDist;  // FocusDistance for projection
+
     // ST2084 vars
     float st2084_m_1;
     float st2084_m_2;
@@ -306,12 +319,6 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
 
     // Hellwig model's gamma (1 / cz)
     float model_gamma;
-
-    // the 1D LUT used for quickly findig the approximate limiting gamut cusp JMh coordinates
-    // the samples are spaced by HSV hue increments of the limiting RGB gamut
-    // so to find the correct entry for a given CAM hue (h) value 
-    // one must search the table entries for the matching entry.z component
-    int gamutCuspTableSize;
 
     // the 'gamutCuspTableUnsorted' table is populated
     // in increments of H of the limiting gamut HSV space starting at H=0.0
@@ -739,7 +746,7 @@ float3 uncompress_bjorn(float3 xyz)
     float b = 0.0f;
     float c = 0.0f;
     float intersectJ = 0.0f;
-    
+
     if (JM.x < focusJ)
     {
         b = 1.0f - JM.y / slope_gain;
@@ -1576,7 +1583,7 @@ float3 uncompress_bjorn(float3 xyz)
     float nJ = JMh.x / limitJmax;
     float snJ = max(0.0f, 1.0f - nJ);
     float Mnorm = cusp_with_eccentricity_factor(JMh.z);
-    float limit = pow(nJ, model_gamma) * cReachFromTable(JMh.z) / Mnorm;
+    float limit = pow(nJ, 1.0f / lowerHullGamma) * cReachFromTable(JMh.z) / Mnorm;
 
     if (!invert)
     {
@@ -1961,8 +1968,8 @@ float3 uncompress_bjorn(float3 xyz)
     if( reachNick)
     {
       float2 JMcusp = cuspFromTable(Jmh.z);
-      float focusJ = lerp(JMcusp.x, midJ, cuspMidBlend);
-      float slope_gain = limitJmax * focusDistance;
+      float focusJ = lerp(JMcusp.x, midJ, min(1.0f, cuspMidBlend - (JMcusp.x / limitJmax)));
+      float slope_gain = limitJmax * focusDist * getFocusGain(Jmh.x, JMcusp.x);
       float intersectJ = solve_J_intersect(float2(Jmh.x,Jmh.y), focusJ, limitJmax, slope_gain);
       float slope;
       if (intersectJ < focusJ)
@@ -1973,8 +1980,7 @@ float3 uncompress_bjorn(float3 xyz)
 	  {
 			slope = (limitJmax - intersectJ) * (intersectJ - focusJ) / (focusJ * slope_gain);
 	  } 
-      float boundaryNick = limitJmax * pow(intersectJ/limitJmax, model_gamma) * reachMaxM / (limitJmax - slope * reachMaxM);
-//       float boundaryNick = limitJmax * pow(intersectJ/limitJmax, lowerHullGamma) * reachMaxM / (limitJmax - slope * reachMaxM);
+      float boundaryNick = limitJmax * pow(intersectJ/limitJmax, 1.0f / lowerHullGamma) * reachMaxM / (limitJmax - slope * reachMaxM);
       return float3(Jmh.x,boundaryNick,Jmh.z);
     }
     float cuspTarget = reachMaxM * pow((Jmh.x/limitJmax), model_gamma);
@@ -2062,17 +2068,54 @@ float3 uncompress_bjorn(float3 xyz)
   }
 
 
+   // https://www.desmos.com/calculator/oe2fscya80
+   float getFocusGain(float J, float cuspJ)
+   {
+     if (disableFocusGain)
+       return 1.0f;
+
+     float thr = lerp(cuspJ, limitJmax, focusGainBlend);
+     if (J > thr)
+     {
+       // Approximate inverse required above threshold
+       float gain = (limitJmax - thr) / max(0.0001f, (limitJmax - min(limitJmax, J)));
+       return pow(log10(gain), 1.0f / focusAdjustGain) + 1.0f;
+     }
+     else
+     {
+       // Analytic inverse possible below cusp
+       return 1.0f;
+     }
+   }
+
   float3 compressGamut(float3 JMh, int invert)
   {
-    if (iterativeGamutCompressor)
+    if (disableFocusGain)
+      return compressGamut2(JMh, invert, JMh.x);
+
+    if (!invert)
     {
-        return compressGamutIterative(  JMh,  invert,  JMh.x );
+      return compressGamut2(JMh, 0, JMh.x);
     }
+    else
+    {
+      float2 JMcusp = cuspFromTable(JMh.z);
+      float Jx = JMh.x;
 
+      // Analytic inverse below threshold
+      if (Jx <= lerp(JMcusp.x, limitJmax, focusGainBlend))
+        return compressGamut2(JMh, 1, Jx);
 
+      // Approximation above
+      Jx = compressGamut2(JMh, 1, Jx).x;
+      return compressGamut2(JMh, 1, Jx);
+    }
+  }
+
+  float3 compressGamut2(float3 JMh, int invert, float Jx)
+  {
     float2 project_from = float2(JMh.x, JMh.y);
     float2 JMcusp = cuspFromTable(JMh.z);
-
 
     if (!applyGamutCompression)
       return JMh;
@@ -2080,10 +2123,10 @@ float3 uncompress_bjorn(float3 xyz)
       return JMh;
 
     // Calculate where the out of gamut color is projected to
-    float focusJ = lerp(JMcusp.x, midJ, cuspMidBlend);
+    float focusJ = lerp(JMcusp.x, midJ, min(1.0f, cuspMidBlend - (JMcusp.x / limitJmax)));
 
     // https://www.desmos.com/calculator/9u0wiiz9ys
-    float Mratio = project_from.y / (focusDistance * JMcusp.y);
+    float Mratio = project_from.y / (focusDist * JMcusp.y);
     float a = max(0.001f, Mratio / focusJ);
     float b0 = 1.0f - Mratio;
     float b1 = -(1.0f + Mratio + (a * limitJmax));
@@ -2098,7 +2141,7 @@ float3 uncompress_bjorn(float3 xyz)
           J0 = (-b + J0) / (2 * a);
     float projectJ = project_from.x < focusJ ? J0 : J1;
 
-    float slope_gain = limitJmax * focusDistance;
+    float slope_gain = limitJmax * focusDist * getFocusGain(Jx, JMcusp.x);
 
     // Find gamut intersection
     float2 project_to = float2(projectJ, 0.0f);
@@ -2130,7 +2173,6 @@ float3 uncompress_bjorn(float3 xyz)
     float4 interpolatedCompressionFuncParams;
     if( reachNick )
     {
-//       interpolatedCompressionFuncParams = getCompressionFuncParams(JMh);
       interpolatedCompressionFuncParams = getCompressionFuncParams(float3(JMboundary.x,JMboundary.y,JMh.z));
     }
     else
@@ -2182,170 +2224,6 @@ float3 uncompress_bjorn(float3 xyz)
     {
       return float3(JMcompressed.x, JMcompressed.y, JMh.z);
     }
-  }
-
-  float3 compressGamutIterative( float3 JMh, int invert, float distanceGainCalcJ )
-  {
-    if( ! applyGamutCompression )
-    {
-      return JMh;
-    }
-
-    float MidJ = XYZ_to_JMh( refWhite * daniele_c_t * mmScaleFactor, refWhite, outputViewingConditions, L_A_out, Y_b_out, discountIlluminant_mid, HK_mode_mid).x;
-
-    // recasting for compatability with non iterative code
-    float2 JMinput = float2(JMh.x, JMh.y);
-    // float3 JMh = inputJMh;
-
-    float2 project_from = float2(JMh.x, JMh.y);
-
-    float2 JMcusp = cuspFromTable( JMh.z);
-
-    float focusJ = lerp(JMcusp.x, MidJ, cuspMidBlend);
-    float focusDistanceGain = 1.0f;
-
-    if( distanceGainCalcJ > focusJ)
-    {
-      focusDistanceGain = (limitJmax - focusJ) / max(0.0001f, (limitJmax - min(limitJmax, distanceGainCalcJ)));
-    }
-    else
-    {
-      focusDistanceGain = (focusJ)             / max(0.0001f, distanceGainCalcJ); 
-    }
-
-    float focusAdjust = max(max(0.01f, 0.4f), min(1.0f, 0.7f) - (distanceGainCalcJ / limitJmax));
-    // float2 JMfocus = float2( focusJ, -JMcusp.y * focusAdjust * focusDistanceGain );
-    float2 JMfocus = float2( focusJ, -JMcusp.y * focusAdjust * focusDistanceGain );
-
-    // float2 JMfocus = float2(JMh.x, 0.0f);
-    // float2 achromaticIntercept = float2(JMfocus.x - (((JMinput.x-JMfocus.x) / (JMinput.y-JMfocus.y))*JMfocus.y), 0.0f);
-
-    float2 achromaticIntercept = float2(JMinput.x, 0.0f);
-
-    float projectJ = project_from.x;
-
-    // to reduce the number of expensive boundary finding iterations needed
-    // we taking an educated guess at a good starting step size
-    // based on how far the sample is either above or below the gamut cusp
-    float cuspToTipRatio;
-    if( JMinput.x > JMcusp.x )
-    {
-      cuspToTipRatio = (JMinput.x - JMcusp.x) / (limitJmax - JMcusp.x);
-    }
-    else
-    {
-      cuspToTipRatio = (JMcusp.x - JMinput.x) / JMcusp.x;
-    }
-
-    float startStepSize = lerp(JMcusp.y / 3.0f, 0.1f, cuspToTipRatio);
-
-    float2 JMboundary = findBoundary(JMinput, JMfocus,  JMh.z, refWhite, XYZ_to_RGB_limit, smoothCusps, iterativeGamutCompressorIterations, startStepSize);
-    float normFact = 1.0f / max(0.0001f, length(JMboundary - achromaticIntercept));
-    // float v = length(JMinput-achromaticIntercept) * normFact;
-
-    // Get hue dependent compression parameters
-     float4 interpolatedCompressionFuncParams = getCompressionFuncParams(float3(JMh.x,JMboundary.y,JMh.z));
-
-     // Compress the out of gamut color along the projection line
-     float2 JMcompressed = project_from;
-     float v = project_from.y / JMboundary.y;
-     if (v >= interpolatedCompressionFuncParams.x)
-     {
-       v = compressPowerP(v, interpolatedCompressionFuncParams.x,
-                          lerp(interpolatedCompressionFuncParams.z, interpolatedCompressionFuncParams.y, projectJ / limitJmax),
-                          interpolatedCompressionFuncParams.w, invert);
-       // JMcompressed = project_to + v * (JMboundary - project_to);
-       JMcompressed = float2(JMh.x,v*JMboundary.y);
-     }
-
-
-    // hack to stop nan values after compression
-
-    if (JMinput.x > limitJmax)
-    {
-      JMcompressed = float2(limitJmax,0.0f);
-    }
- 
-    // Diagnostic outputs
-    if (diagnosticMode == 5)
-    {
-      return float3(JMfocus.x, JMfocus.y, normFact);
-    }
-    if (diagnosticMode == 12)
-    {
-    return float3(JMboundary.x, JMboundary.y, JMh.z);
-    }
-    if (diagnosticMode == 18)
-    {
-    // return float3(interpolatedCompressionFuncParams.y, interpolatedCompressionFuncParams.z, JMh.z);
-    return float3(JMh.x, JMboundary.y, JMh.z);
-    }
-    if (diagnosticMode == 20)
-    {
-      // return focus point
-      return float3(JMfocus.x, JMfocus.y, JMh.z);
-    }
-    // actual output
-    else
-    {
-    return float3(JMcompressed.x, JMcompressed.y, JMh.z);
-    }
-  }
-
-  // find the JM coordinates of the smoothed boundary of the limiting gamut in ZCAM at the hue slice 'h' 
-  // by searching along the line defined by 'JMSource' and 'JMFocus'
-  // the function will search outwards from where the line intersects the achromatic axis with a staring incement of 'startStepSize'
-  // once the boundary has been crossed it will search in the opposite direction with half the step size
-  // and will repeat this as as many times as is set by the 'precision' paramter
-  float2 findBoundary(float2 JMSource, float2 JMFocus, float h, float3 XYZw, float3x3 XYZ_to_RGB, float smoothing, int precision, float startStepSize )
-  {
-
-    float2 achromaticIntercept = float2(JMFocus.x - (((JMSource.x-JMFocus.x) / (JMSource.y-JMFocus.y))*JMFocus.y), 0.0f);
-
-    if( achromaticIntercept.x <= 0.0f || achromaticIntercept.x >= limitJmax )
-    {
-       return achromaticIntercept;
-    }
-
-
-    float stepSize = startStepSize;
-    float2 unitVector = normalize(achromaticIntercept - JMFocus);
-    float2 JMtest = achromaticIntercept;
-    int searchOutwards = 1;
-
-    for( int i = 0; i < precision; ++i )
-    {
-
-      for( int k = 0; k < 30; ++k )
-      {
-        JMtest = JMtest + unitVector * stepSize;
-        int inside = isInsideCube( vector_dot(XYZ_to_RGB, JMh_to_XYZ( float3(JMtest.x, JMtest.y, h), XYZw, outputViewingConditions , L_A, Y_b, discountIlluminant_mid, HK_mode_mid) / referenceLuminance ), boundaryRGB, smoothing);
-
-        if( searchOutwards )
-        {
-          if( JMtest.x < 0.0f || JMtest.x > limitJmax || JMtest.y > limitMmax || !inside )
-          {
-            searchOutwards = 0;
-            stepSize = -fabs(stepSize) / 2.0f;
-            break;
-          }
-        }
-        else
-        {
-          if( JMtest.y < 0.0f || inside )
-          {
-            searchOutwards = 1;
-            stepSize = fabs(stepSize) / 2.0f;
-            break;
-          }
-        }
-      }
-    }
-
-
-    float2 JMboundary = float2( clamp(JMtest.x, 0.0f, limitJmax), clamp(JMtest.y, 0.0f, limitMmax) );
-    // float2 JMboundary = float2(JMtest.x, JMtest.y);
-    return JMboundary;
   }
 
   // Generate the Hellwig2022 post adaptation non-linear compression matrix
@@ -2412,9 +2290,18 @@ float3 uncompress_bjorn(float3 xyz)
 
     // Chroma compression scaling for HDR/SDR appearance match
     float log_peak = log10(daniele_n / daniele_n_r);
-    compr = chroma_compress + 20.0f * log_peak;
-    sat = max(0.2f, 1.9f - 1.55f * log_peak);
-    sat_thr = 0.5f / daniele_n;
+    compr = chroma_compress + (chroma_compress * 5.0f) * log_peak;
+    sat = max(0.15f, chroma_expand - (chroma_expand * 0.78f) * log_peak);
+    sat_thr = chroma_expand_thr / daniele_n;
+
+    // Gamut mapper focus distance scaling with peak luminance for
+    // HDR/SDR appearance match.  The projection gets slightly less
+    // steep with higher peak luminance.
+    // https://www.desmos.com/calculator/bnfhjcq5vf
+    if (!disableFocusDistScaling)
+      focusDist = min(10.0f, focusDistance + focusDistance * 1.65f * log_peak);
+    else
+      focusDist = focusDistance;
 
     float identity_matrix_data[]={ 1.0f, 0.0f, 0.0f,
                                    0.0f, 1.0f, 0.0f,
@@ -2685,8 +2572,6 @@ float3 uncompress_bjorn(float3 xyz)
     // we then convert each cusp to JMh and add them to a table 
     //
 
-    gamutCuspTableSize = 360;
-
     // LocusLimitMTable = LocusLimitMTable_data;
     for( int i = 0; i < gamutCuspTableSize; ++i )
     {
@@ -2837,7 +2722,6 @@ float3 uncompress_bjorn(float3 xyz)
       // get cusp from cusp table at hue position
      float2 JMcusp = cuspFromTable(float(i));
      // create test value halfway betwen the cusp and the Jmax
-     float slope_gain = limitJmax * focusDistance;
     // positions between the cusp and Jmax we will check
      float testPositions[] = {0.01f,0.5f,0.99f};
     // variables that get set as we iterate through, once all 3 are set to true we break the loop
@@ -2879,18 +2763,17 @@ float3 uncompress_bjorn(float3 xyz)
       // get cusp from cusp table at hue position
      float2 JMcusp = cuspFromTable(float(i));
      // create test value halfway betwen the cusp and the Jmax
-     float slope_gain = limitJmax * focusDistance;
     // positions between the cusp and Jmax we will check
-     float testPositions[] = {0.25f,0.5f,0.75f};
+     float testPositions[] = {0.01f,0.4f,0.75f};
     // variables that get set as we iterate through, once all 3 are set to true we break the loop
      bool gammaFound[3] = {false};
      // limit value, once we cross this value, we are outside of the top gamut shell 
      float maxRGBtestVal = 1.0f;
      // Tg is Test Gamma. the values are shifted two decimal points to the left. Tg 70 = Gamma 0.7
-     for( int Bg = 70; Bg < 170; ++Bg )
+     for( int Bg = 1140; Bg < 1200; ++Bg )
      {
         // topGamma value created from the Tg variable
-        float bottomGamma = float(Bg) / 100.0f;
+        float bottomGamma = float(Bg) / 1000.0f;
         // loop to run through each of the positions defined in the testPositions list
         for ( int testIndex = 0 ; testIndex < 3 ; ++testIndex )
         {
@@ -2913,8 +2796,6 @@ float3 uncompress_bjorn(float3 xyz)
       }
     }
 
-
-    // debugPrint(&gamutTopGamma,1,1); 
 
 
     // Cusp table for AP1 gamut
@@ -3066,7 +2947,7 @@ float3 uncompress_bjorn(float3 xyz)
     float2 JMcusp = cuspFromTable(srcRGB.z);
     // create test value halfway betwen the cusp and the Jmax
    //  float2 JMcusp = float2(gamutCuspTable[i].x, gamutCuspTable[i].y);
-    float slope_gain = limitJmax * focusDistance;
+    float slope_gain = limitJmax * focusDist;
     diagnostic = float3(JMcusp.x + ((limitJmax - JMcusp.x) / 2.0f ), JMcusp.y , srcRGB.z);
     }
     else if (diagnosticMode == 23)
@@ -3074,7 +2955,7 @@ float3 uncompress_bjorn(float3 xyz)
     float2 JMcusp = cuspFromTable(srcRGB.z);
     // create test value halfway betwen the cusp and the Jmax
    //  float2 JMcusp = float2(gamutCuspTable[i].x, gamutCuspTable[i].y);
-    float slope_gain = limitJmax * focusDistance;
+    float slope_gain = limitJmax * focusDist;
     float3 testJmh = float3(JMcusp.x + ((limitJmax - JMcusp.x) / 2.0f ), JMcusp.y , srcRGB.z);
     float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh,         JMcusp,(JMcusp.x+38.0f)/2,   limitJmax,       slope_gain,      smoothCusps,       hueDependantUpperHullGamma(srcRGB.z),hueDependantLowerHullGamma(srcRGB.z));
     diagnostic = float3(approxLimit.x, approxLimit.y, srcRGB.z);
@@ -3085,7 +2966,7 @@ float3 uncompress_bjorn(float3 xyz)
     float2 JMcusp = cuspFromTable(srcRGB.z);
     // create test value halfway betwen the cusp and the Jmax
    //  float2 JMcusp = float2(gamutCuspTable[i].x, gamutCuspTable[i].y);
-    float slope_gain = limitJmax * focusDistance;
+    float slope_gain = limitJmax * focusDist;
     float3 testJmh = float3(JMcusp.x + ((limitJmax - JMcusp.x) / 2.0f ), JMcusp.y , srcRGB.z);
     float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh,         JMcusp,(JMcusp.x+38.0f)/2,   limitJmax,       slope_gain,      smoothCusps,       hueDependantUpperHullGamma(srcRGB.z),hueDependantLowerHullGamma(srcRGB.z));
     float3 newLimitRGB = JMh_to_limit_RGB(float3(approxLimit.x, approxLimit.y, srcRGB.z));
@@ -3095,7 +2976,7 @@ float3 uncompress_bjorn(float3 xyz)
     else if (diagnosticMode == 25)
     {
       float2 JMcusp = cuspFromTable(srcRGB.z);
-      float slope_gain = limitJmax * focusDistance;
+      float slope_gain = limitJmax * focusDist;
       float focusJ = lerp(JMcusp.x, midJ, cuspMidBlend);
       float3 nickBoundryReturn =  findGamutBoundaryIntersection(        srcRGB,         JMcusp,        focusJ,   limitJmax,       slope_gain, smoothCusps,       hueDependantUpperHullGamma(srcRGB.z),hueDependantLowerHullGamma(srcRGB.z));
       diagnostic = float3(srcRGB.x,nickBoundryReturn.y,srcRGB.z);
