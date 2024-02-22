@@ -116,7 +116,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     // Toggle Gamut Compression
     bool applyGamutCompression;
 
-    // the 1D LUT used for quickly findig the approximate limiting gamut cusp JMh coordinates
+    // the 1D LUT used for quickly finding the approximate limiting gamut cusp JMh coordinates
     // the samples are spaced by HSV hue increments of the limiting RGB gamut
     // so to find the correct entry for a given CAM hue (h) value 
     // one must search the table entries for the matching entry.z component
@@ -483,7 +483,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
   }
 
   // "PowerP" compression function (also used in the ACES Reference Gamut Compression transform)
-  // values of v above  'treshold' are compressed by a 'power' function
+  // values of v above  'threshold' are compressed by a 'power' function
   // so that an input value of 'limit' results in an output of 1.0
   float compressPowerP( float v, float threshold, float limit, float power, int inverse )
   {
@@ -1191,7 +1191,7 @@ float3 uncompress_bjorn(float3 xyz)
         float b = (R_a + G_a - 2.0f * B_a) / 9.0f;
 
         // # Computing the *hue* angle :math:`h`.
-        // Unclear why this isnt matching the python version.
+        // Unclear why this isn't matching the python version.
         float hr = atan2(b, a);
         float h = mod(degrees(hr), 360.0f);
 
@@ -2929,7 +2929,7 @@ float3 uncompress_bjorn(float3 xyz)
     // start by taking a h angle
     // get the cusp J value for that angle
     // find a J value halfway to the Jmax
-    // iterate through gamma values until the approxilate max M is negative through the actual boundry
+    // iterate through gamma values until the approximate max M is negative through the actual boundary
 
     // positions between the cusp and Jmax we will check
     // variables that get set as we iterate through, once all are set to true we break the loop
@@ -2944,7 +2944,7 @@ float3 uncompress_bjorn(float3 xyz)
       float3 testJmh[test_count];
       for (int testIndex = 0; testIndex < test_count; ++testIndex)
       {
-        // create test values halfway betwen the cusp and the Jmax
+        // create test values halfway between the cusp and the Jmax
         testJmh[testIndex] = float3(JMcusp.x + ((limitJmax - JMcusp.x) * testPositions[testIndex] ), JMcusp.y , hue);
       }
 
@@ -3126,12 +3126,12 @@ float3 uncompress_bjorn(float3 xyz)
     }
     else if (diagnosticMode == 12)
     {
-      // output gamut boundry
+      // output gamut boundary
       diagnostic = compressGamut(srcRGB, 1);
     }
     else if (diagnosticMode == 13)
     {
-      // output gamut boundry
+      // output gamut boundary
       diagnostic = compressGamut(srcRGB, invert);
     }
     else if (diagnosticMode == 14)
@@ -3151,17 +3151,17 @@ float3 uncompress_bjorn(float3 xyz)
     }
     else if (diagnosticMode == 17)
     {
-      // output Locus boundry
+      // output Locus boundary
       diagnostic = getLocusBoundry(srcRGB);
     }
     else if (diagnosticMode == 18)
     {
-      // output gamut boundry
+      // output gamut boundary
       diagnostic = compressGamut(srcRGB, 0  );
     }
     else if (diagnosticMode == 19)
     {
-      // output Reach boundry
+      // output Reach boundary
       diagnostic = getReachBoundry(srcRGB);
     }
     else if (diagnosticMode == 20)
@@ -3178,7 +3178,7 @@ float3 uncompress_bjorn(float3 xyz)
     else if (diagnosticMode == 22)
     {
     float2 JMcusp = cuspFromTable(srcRGB.z);
-    // create test value halfway betwen the cusp and the Jmax
+    // create test value halfway between the cusp and the Jmax
    //  float2 JMcusp = float2(gamutCuspTable[i].x, gamutCuspTable[i].y);
     float slope_gain = limitJmax * focusDist;
     diagnostic = float3(JMcusp.x + ((limitJmax - JMcusp.x) / 2.0f ), JMcusp.y , srcRGB.z);
@@ -3186,7 +3186,7 @@ float3 uncompress_bjorn(float3 xyz)
     else if (diagnosticMode == 23)
     {
     float2 JMcusp = cuspFromTable(srcRGB.z);
-    // create test value halfway betwen the cusp and the Jmax
+    // create test value halfway between the cusp and the Jmax
    //  float2 JMcusp = float2(gamutCuspTable[i].x, gamutCuspTable[i].y);
     float slope_gain = limitJmax * focusDist;
     float3 testJmh = float3(JMcusp.x + ((limitJmax - JMcusp.x) / 2.0f ), JMcusp.y , srcRGB.z);
@@ -3197,7 +3197,7 @@ float3 uncompress_bjorn(float3 xyz)
     else if (diagnosticMode == 24)
     {
     float2 JMcusp = cuspFromTable(srcRGB.z);
-    // create test value halfway betwen the cusp and the Jmax
+    // create test value halfway between the cusp and the Jmax
    //  float2 JMcusp = float2(gamutCuspTable[i].x, gamutCuspTable[i].y);
     float slope_gain = limitJmax * focusDist;
     float3 testJmh = float3(JMcusp.x + ((limitJmax - JMcusp.x) / 2.0f ), JMcusp.y , srcRGB.z);
