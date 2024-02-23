@@ -319,16 +319,15 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     // Hellwig model's gamma (1 / cz)
     float model_gamma;
 
-    // the 'gamutCuspTableUnsorted' table is populated
+    // the 'tempTableUnsorted' table is populated
     // in increments of H of the limiting gamut HSV space starting at H=0.0
     // since it is unlikely that HSV.H=0 and JMh.h=0 line up
     // the entries are then wrap-around shifted
     // so that the 'gamutCuspTable' starts with the lowest JMh.h value
     // both tables need to be declared here since temporary array variables
     // in the init() fuction seem to crash Nuke on some systems
-    float3 gamutCuspTableUnsorted[360];
+    float3 tempTableUnsorted[360];
     float3 gamutCuspTable[360];
-    float3 gamutCuspTableUnsortedAP1[360];
     float3 gamutCuspTableAP1[360];
     float3 gamutCuspTableReach[360];
     float3 cgamutCuspTable[360];
@@ -1050,29 +1049,11 @@ float3 uncompress_bjorn(float3 xyz)
   }
 
 
-  // convert linear RGB values with the limiting primaries to CAM J (lightness), M (colorfulness) and h (hue) correlates
-  float3 limit_RGB_to_JMh(float3 RGB)
+  // convert linear RGB values with the given primaries to CAM J (lightness), M (colorfulness) and h (hue) correlates
+  float3 RGB_to_JMh(float3 RGB, float3x3 matrix)
   {
     float3 luminanceRGB = RGB * boundaryRGB *referenceLuminance;
-    float3 XYZ = vector_dot(RGB_to_XYZ_limit, luminanceRGB);
-    float3 JMh = XYZ_to_JMh(XYZ, refWhite, viewingConditions, L_A, Y_b, discountIlluminant_mid, HK_mode_mid);
-    return JMh;
-  }
-
-    // convert linear RGB values with the limiting primaries to CAM J (lightness), M (colorfulness) and h (hue) correlates
-    float3 reach_RGB_to_JMh(float3 RGB)
-    {
-      float3 luminanceRGB = RGB * boundaryRGB *referenceLuminance;
-      float3 XYZ = vector_dot(RGB_to_XYZ_reach, luminanceRGB);
-      float3 JMh = XYZ_to_JMh(XYZ, refWhite, viewingConditions, L_A, Y_b, discountIlluminant_mid, HK_mode_mid);
-      return JMh;
-    }
-
-  // convert linear RGB values with the AP1 primaries to CAM J (lightness), M (colorfulness) and h (hue) correlates
-  float3 AP1_RGB_to_JMh(float3 RGB)
-  {
-    float3 luminanceRGB = RGB * boundaryRGB *referenceLuminance;
-    float3 XYZ = vector_dot(AP1_to_XYZ, luminanceRGB);
+    float3 XYZ = vector_dot(matrix, luminanceRGB);
     float3 JMh = XYZ_to_JMh(XYZ, refWhite, viewingConditions, L_A, Y_b, discountIlluminant_mid, HK_mode_mid);
     return JMh;
   }
@@ -2519,16 +2500,16 @@ float3 uncompress_bjorn(float3 xyz)
     // calculate the maximum expected J & M values for the given limit gamut
     // these are used as limiting values for the gamut boundary searches
     // limitJmax (assumed to match limitRGB white)
-    limitJmax = limit_RGB_to_JMh(float3(1.0f)).x;
+    limitJmax = RGB_to_JMh(float3(1.0f), RGB_to_XYZ_limit).x;
 
     // limitMmax (assumed to coincide with one of the RGBCMY corners of the limitRGB cube)
     float3 gamutCornersTable[6];
-    gamutCornersTable[0] = limit_RGB_to_JMh(float3(1.0f, 0.0f, 0.0f));
-    gamutCornersTable[1] = limit_RGB_to_JMh(float3(1.0f, 1.0f, 0.0f));
-    gamutCornersTable[2] = limit_RGB_to_JMh(float3(0.0f, 1.0f, 0.0f));
-    gamutCornersTable[3] = limit_RGB_to_JMh(float3(0.0f, 1.0f, 1.0f));
-    gamutCornersTable[4] = limit_RGB_to_JMh(float3(0.0f, 0.0f, 1.0f));
-    gamutCornersTable[5] = limit_RGB_to_JMh(float3(1.0f, 0.0f, 1.0f));
+    gamutCornersTable[0] = RGB_to_JMh(float3(1.0f, 0.0f, 0.0f), RGB_to_XYZ_limit);
+    gamutCornersTable[1] = RGB_to_JMh(float3(1.0f, 1.0f, 0.0f), RGB_to_XYZ_limit);
+    gamutCornersTable[2] = RGB_to_JMh(float3(0.0f, 1.0f, 0.0f), RGB_to_XYZ_limit);
+    gamutCornersTable[3] = RGB_to_JMh(float3(0.0f, 1.0f, 1.0f), RGB_to_XYZ_limit);
+    gamutCornersTable[4] = RGB_to_JMh(float3(0.0f, 0.0f, 1.0f), RGB_to_XYZ_limit);
+    gamutCornersTable[5] = RGB_to_JMh(float3(1.0f, 0.0f, 1.0f), RGB_to_XYZ_limit);
 
     limitMmax = 0.0f;
     for( int i = 0; i < 6; ++i )
@@ -2563,24 +2544,7 @@ float3 uncompress_bjorn(float3 xyz)
     }
     RGB_to_XYZ_limit = XYZ_to_RGB_reach.invert();
 
-    for( int i = 0; i < gamutCuspTableSize; ++i )
-    {
-      float hNorm = float(i) / (gamutCuspTableSize);
-      float3 RGB = HSV_to_RGB(float3(hNorm, 1.0f, 1.0f));
-      gamutCuspTableUnsorted[i] = limit_RGB_to_JMh(RGB);
-    }
-    int minhIndex = 0;
-    for( int i = 1; i < gamutCuspTableSize; ++i )
-    {
-      if( gamutCuspTableUnsorted[i].z <  gamutCuspTableUnsorted[minhIndex].z)
-      {
-        minhIndex = i;
-      }
-    }
-    for( int i = 0; i < gamutCuspTableSize; ++i )
-    {
-      cgamutCuspTable[i] = gamutCuspTableUnsorted[(minhIndex+i)%gamutCuspTableSize];
-    }
+    initialise_cusp_table(cgamutCuspTable, RGB_to_XYZ_limit);
 
     initialise_cgreach_cusp_table();
 
@@ -2593,27 +2557,8 @@ float3 uncompress_bjorn(float3 xyz)
       XYZ_to_RGB_reach = tmpR;
   }
  
-  // Cusp table for limiting gamut
-    for( int i = 0; i < gamutCuspTableSize; ++i )
-    {
-      float hNorm = float(i) / (gamutCuspTableSize);
-      float3 RGB = HSV_to_RGB(float3(hNorm, 1.0f, 1.0f));
-      gamutCuspTableUnsorted[i] = limit_RGB_to_JMh(RGB);
-    }
-
-    int minhIndex = 0;
-    for( int i = 1; i < gamutCuspTableSize; ++i )
-    {
-      if( gamutCuspTableUnsorted[i].z <  gamutCuspTableUnsorted[minhIndex].z)
-      {
-        minhIndex = i;
-      }
-    }
-
-    for( int i = 0; i < gamutCuspTableSize; ++i )
-    {
-      gamutCuspTable[i] = gamutCuspTableUnsorted[(minhIndex+i)%gamutCuspTableSize];
-    }
+    // Cusp table for limiting gamut
+    initialise_cusp_table(gamutCuspTable, RGB_to_XYZ_limit);
 
     initialise_reach_cusp_table();
 
@@ -2623,27 +2568,30 @@ float3 uncompress_bjorn(float3 xyz)
     initialise_lower_hull_gamma();
 
     // Cusp table for AP1 gamut
-    {
+    initialise_cusp_table(gamutCuspTableAP1, AP1_to_XYZ);
+  }
+
+  void initialise_cusp_table(float3 output_table[], float3x3 matrix)
+  {
+    int minhIndex = 0;
     for( int i = 0; i < gamutCuspTableSize; ++i )
     {
-      float hNorm = float(i) / (gamutCuspTableSize);
-      float3 RGB = HSV_to_RGB(float3(hNorm, 1.0f, 1.0f));
-      gamutCuspTableUnsortedAP1[i] = AP1_RGB_to_JMh(RGB);
-    }
-
-    int minhIndex = 0;
-    for( int i = 1; i < gamutCuspTableSize; ++i )
-    {
-      if( gamutCuspTableUnsortedAP1[i].z <  gamutCuspTableUnsortedAP1[minhIndex].z)
+      const float hNorm = float(i) / (gamutCuspTableSize);
+      const float3 RGB = HSV_to_RGB(float3(hNorm, 1.0f, 1.0f));
+      tempTableUnsorted[i] = RGB_to_JMh(RGB, matrix);
+      if( tempTableUnsorted[i].z <  tempTableUnsorted[minhIndex].z)
       {
         minhIndex = i;
       }
     }
+    copy_table_rotated(tempTableUnsorted, gamutCuspTableSize, output_table, minhIndex);
+  }
 
-    for( int i = 0; i < gamutCuspTableSize; ++i )
+  void copy_table_rotated(float3 tableUnsorted[], int tableSize, float3 output_table[], int offsetIndex)
+  {
+    for( int i = 0; i < tableSize; ++i )
     {
-      gamutCuspTableAP1[i] = gamutCuspTableUnsortedAP1[(minhIndex+i)%gamutCuspTableSize];
-    }
+      output_table[i] = tableUnsorted[(offsetIndex+i)%tableSize];
     }
   }
 
