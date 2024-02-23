@@ -2018,7 +2018,7 @@ float3 uncompress_bjorn(float3 xyz)
 
     const float t = (h - lo.z) / (hi.z - lo.z);
 
-    const float reachMaxM = lerp(lo.x, hi.x, t);
+    const float reachMaxM = lerp(lo.y, hi.y, t);
     if( reachNick)
     {
       float2 JMcusp = cuspFromTable(Jmh.z);
@@ -2681,7 +2681,8 @@ float3 uncompress_bjorn(float3 xyz)
           low = sampleM;
         }
       }
-      gamutCuspTableReach[i].x = high;
+      gamutCuspTableReach[i].x = limitJmax;
+      gamutCuspTableReach[i].y = high;
       gamutCuspTableReach[i].z = i;
     }
   }
@@ -2720,6 +2721,7 @@ float3 uncompress_bjorn(float3 xyz)
           low = sampleM;
         }
       }
+      cgamutReachTable[i].x = limitJmax;
       cgamutReachTable[i].y = high;
       cgamutReachTable[i].z = i;
     }
