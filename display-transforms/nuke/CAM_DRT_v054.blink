@@ -244,6 +244,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
 
     // Hellwig 2022 constants
     float3x3 CAT_CAT16;
+    float3x3 CAT_CAT16_INVERSE;
     float3x3 panlrcm;
 
     float daniele_r_hit;
@@ -1313,8 +1314,7 @@ float3 uncompress_bjorn(float3 xyz)
         float3 RGB = RGB_c / D_RGB;
         
         // # Step 7
-        float3x3 MATRIX_INVERSE_16 = CAT_CAT16.invert();
-        float3 XYZ = vector_dot(MATRIX_INVERSE_16, RGB);
+        float3 XYZ = vector_dot(CAT_CAT16_INVERSE, RGB);
 
         return XYZ;
     }
@@ -2306,6 +2306,37 @@ float3 uncompress_bjorn(float3 xyz)
     }
   }
 
+  float3x3 generate_RGB_to_XYZ_matrix(const int which)
+  {
+    if( which == 0 )
+    {
+      return RGBPrimsToXYZMatrix(float2(0.7347f, 0.2653), float2(0.0f, 1.0f), float2(0.0001, -0.077), float2(0.32168f, 0.33767f), 1.0f, 0);
+    }
+    else if( which == 1 )
+    {
+      return RGBPrimsToXYZMatrix(float2(0.713f, 0.293f), float2(0.165f, 0.830f), float2(0.128f, 0.044f), float2(0.32168f, 0.33767f), 1.0f, 0);
+    }
+    else if( which == 2 )
+    {
+      return RGBPrimsToXYZMatrix(float2(0.64f, 0.33f), float2(0.3f, 0.6f), float2(0.15f, 0.06f), float2(0.3127f, 0.3290f), 1.0f, 0);
+    }
+    else if( which == 3 )
+    {
+      return RGBPrimsToXYZMatrix(float2(0.708f, 0.292f), float2(0.170f, 0.797f), float2(0.131f, 0.046f), float2(0.3127f, 0.3290f), 1.0f, 0);
+    }
+    else if( which == 4 )
+    {
+      return RGBPrimsToXYZMatrix(float2(0.680f, 0.320f), float2(0.265f, 0.690f), float2(0.150f, 0.060f), float2(0.3127f, 0.3290f), 1.0f, 0);
+    }
+    else if( which == 5 )
+    {
+      return RGBPrimsToXYZMatrix(float2(0.680f, 0.320f), float2(0.265f, 0.690f), float2(0.150f, 0.060f), float2(0.314f, 0.351f), 1.0f, 0);
+    }
+    else
+    {
+      return identity_matrix;
+    }
+  }
 
   void init()
   {
@@ -2381,34 +2412,8 @@ float3 uncompress_bjorn(float3 xyz)
 
 
     // populate the input primaries matrix
-    if( primariesIn == 0 )
-    {
-      XYZ_to_RGB_input = RGBPrimsToXYZMatrix(float2(0.7347f, 0.2653), float2(0.0f, 1.0f), float2(0.0001, -0.077), float2(0.32168f, 0.33767f), 1.0f, 1);
-    }
-    else if( primariesIn == 1 )
-    {
-      XYZ_to_RGB_input = RGBPrimsToXYZMatrix(float2(0.713f, 0.293f), float2(0.165f, 0.830f), float2(0.128f, 0.044f), float2(0.32168f, 0.33767f), 1.0f, 1);
-    }
-    else if( primariesIn == 2 )
-    {
-      XYZ_to_RGB_input = RGBPrimsToXYZMatrix(float2(0.64f, 0.33f), float2(0.3f, 0.6f), float2(0.15f, 0.06f), float2(0.3127f, 0.3290f), 1.0f, 1);
-    }
-    else if( primariesIn == 3 )
-    {
-      XYZ_to_RGB_input = RGBPrimsToXYZMatrix(float2(0.708f, 0.292f), float2(0.170f, 0.797f), float2(0.131f, 0.046f), float2(0.3127f, 0.3290f), 1.0f, 1);
-    }
-    else if( primariesIn == 4 )
-    {
-      XYZ_to_RGB_input = RGBPrimsToXYZMatrix(float2(0.680f, 0.320f), float2(0.265f, 0.690f), float2(0.150f, 0.060f), float2(0.3127f, 0.3290f), 1.0f, 1);
-    }
-    else if( primariesIn == 5 )
-    {
-      XYZ_to_RGB_input = RGBPrimsToXYZMatrix(float2(0.680f, 0.320f), float2(0.265f, 0.690f), float2(0.150f, 0.060f), float2(0.314f, 0.351f), 1.0f, 1);
-    }
-    else
-    {
-      XYZ_to_RGB_input.setArray(identity_matrix_data);
-    }
+    RGB_to_XYZ_input  = generate_RGB_to_XYZ_matrix(primariesIn);
+    XYZ_to_RGB_input  = RGB_to_XYZ_input.invert();
 
     // populate the limiting primaries matrix
     // RGBPrimsToXYZMatrix
@@ -2466,84 +2471,23 @@ float3 uncompress_bjorn(float3 xyz)
       limitBlueForMatrix = float2(0.0f, 0.0f);
     }
 
-    XYZ_to_RGB_limit = RGBPrimsToXYZMatrix(limitRedForMatrix, limitGreenForMatrix, limitBlueForMatrix, limitWhiteForMatrix, 1.0f, 1);
+    RGB_to_XYZ_limit  = RGBPrimsToXYZMatrix(limitRedForMatrix, limitGreenForMatrix, limitBlueForMatrix, limitWhiteForMatrix, 1.0f, 0);
+    XYZ_to_RGB_limit  = RGB_to_XYZ_limit.invert();
 
-    // populate the reach primaries matrix
-    if( primariesReach == 0 )
-    {
-        XYZ_to_RGB_reach = RGBPrimsToXYZMatrix(float2(0.7347f, 0.2653), float2(0.0f, 1.0f), float2(0.0001, -0.077), float2(0.32168f, 0.33767f), 1.0f, 1);
-    }
-    else if( primariesReach == 1 )
-    {
-        XYZ_to_RGB_reach = RGBPrimsToXYZMatrix(float2(0.713f, 0.293f), float2(0.165f, 0.830f), float2(0.128f, 0.044f), float2(0.32168f, 0.33767f), 1.0f, 1);
-    }
-    else if( primariesReach == 2 )
-    {
-        XYZ_to_RGB_reach = RGBPrimsToXYZMatrix(float2(0.64f, 0.33f), float2(0.3f, 0.6f), float2(0.15f, 0.06f), float2(0.3127f, 0.3290f), 1.0f, 1);
-    }
-    else if( primariesReach == 3 )
-    {
-        XYZ_to_RGB_reach = RGBPrimsToXYZMatrix(float2(0.708f, 0.292f), float2(0.170f, 0.797f), float2(0.131f, 0.046f), float2(0.3127f, 0.3290f), 1.0f, 1);
-    }
-    else if( primariesReach == 4 )
-    {
-        XYZ_to_RGB_reach = RGBPrimsToXYZMatrix(float2(0.680f, 0.320f), float2(0.265f, 0.690f), float2(0.150f, 0.060f), float2(0.3127f, 0.3290f), 1.0f, 1);
-    }
-    else if( primariesReach == 5 )
-    {
-        XYZ_to_RGB_reach = RGBPrimsToXYZMatrix(float2(0.680f, 0.320f), float2(0.265f, 0.690f), float2(0.150f, 0.060f), float2(0.314f, 0.351f), 1.0f, 1);
-    }
-    else
-    {
-        XYZ_to_RGB_reach.setArray(identity_matrix_data);
-    }
+    RGB_to_XYZ_reach  = generate_RGB_to_XYZ_matrix(primariesReach);
+    XYZ_to_RGB_reach  = RGB_to_XYZ_reach.invert();
 
-    // populate the output primaries matrix
-    if( primariesOut == 0 )
-    {
-      XYZ_to_RGB_output = RGBPrimsToXYZMatrix(float2(0.7347f, 0.2653), float2(0.0f, 1.0f), float2(0.0001, -0.077), float2(0.32168f, 0.33767f), 1.0f, 1);
-    }
-    else if( primariesOut == 1 )
-    {
-      XYZ_to_RGB_output = RGBPrimsToXYZMatrix(float2(0.713f, 0.293f), float2(0.165f, 0.830f), float2(0.128f, 0.044f), float2(0.32168f, 0.33767f), 1.0f, 1);
-    }
-    else if( primariesOut == 2 )
-    {
-      XYZ_to_RGB_output = RGBPrimsToXYZMatrix(float2(0.64f, 0.33f), float2(0.3f, 0.6f), float2(0.15f, 0.06f), float2(0.3127f, 0.3290f), 1.0f, 1);
-    }
-    else if( primariesOut == 3 )
-    {
-      XYZ_to_RGB_output = RGBPrimsToXYZMatrix(float2(0.708f, 0.292f), float2(0.170f, 0.797f), float2(0.131f, 0.046f), float2(0.3127f, 0.3290f), 1.0f, 1);
-    }
-    else if( primariesOut == 4 )
-    {
-      XYZ_to_RGB_output = RGBPrimsToXYZMatrix(float2(0.680f, 0.320f), float2(0.265f, 0.690f), float2(0.150f, 0.060f), float2(0.3127f, 0.3290f), 1.0f, 1);
-    }
-    else if( primariesOut == 5 )
-    {
-      XYZ_to_RGB_output = RGBPrimsToXYZMatrix(float2(0.680f, 0.320f), float2(0.265f, 0.690f), float2(0.150f, 0.060f), float2(0.314f, 0.351f), 1.0f, 1);
-    }
-    else
-    {
-      XYZ_to_RGB_output.setArray(identity_matrix_data);
-    }
+    RGB_to_XYZ_output  = generate_RGB_to_XYZ_matrix(primariesOut);
+    XYZ_to_RGB_output  = RGB_to_XYZ_output.invert();
+    
+    AP1_to_XYZ = generate_RGB_to_XYZ_matrix(1); // AP1 == 1
+    XYZ_to_AP1 = AP1_to_XYZ.invert();
 
-    RGB_to_XYZ_input  = XYZ_to_RGB_input.invert();
-    RGB_to_XYZ_limit  = XYZ_to_RGB_limit.invert();
-    RGB_to_XYZ_reach = XYZ_to_RGB_reach.invert();
-    RGB_to_XYZ_output = XYZ_to_RGB_output.invert();
-
-    XYZ_to_AP1 = RGBPrimsToXYZMatrix(float2(0.713f, 0.293f), float2(0.165f, 0.830f), float2(0.128f, 0.044f), float2(0.32168f, 0.33767f), 1.0f, 1);
-    AP1_to_XYZ = XYZ_to_AP1.invert();
-
-    float3x3 XYZ_to_RGB_sRGB;
-    XYZ_to_RGB_sRGB = RGBPrimsToXYZMatrix(float2(0.64f, 0.33f), float2(0.3f, 0.6f), float2(0.15f, 0.06f), float2(0.3127f, 0.3290f), 1.0f, 1);
     float3 white(1.0f, 1.0f, 1.0f);
-
     inWhite = vector_dot(RGB_to_XYZ_input, white);
     outWhite = vector_dot(RGB_to_XYZ_output, white);
     refWhite = vector_dot(RGB_to_XYZ_limit, white);
-    limitWhite = vector_dot(RGB_to_XYZ_limit, white);
+    limitWhite = vector_dot(RGB_to_XYZ_limit, white); // TODO; could ref and limit be different?
 
     boundaryRGB = peakLuminance / referenceLuminance;
 
@@ -2559,16 +2503,14 @@ float3 uncompress_bjorn(float3 xyz)
     {
         CAT_CAT16 = RGBPrimsToXYZMatrix(rxy,gxy,bxy,wxy,1.0f,1);
     }
+    CAT_CAT16_INVERSE = CAT_CAT16.invert();
 
     generate_panlrcm();
 
-    //
     // solving the RGB cusp from JMh is very expensive
     // instead we go the other way and start with a RGB cusp sweep
     // which is easily calculated by converting via HSV (Hue, 1.0, 1.0)
     // we then convert each cusp to JMh and add them to a table 
-    //
-
     for( int i = 0; i < gamutCuspTableSize; ++i )
     {
       LocusLimitMTable[i] = LocusLimitMTable_data[i];
@@ -2598,13 +2540,13 @@ float3 uncompress_bjorn(float3 xyz)
 
   // Cusp table for chroma compression gamut
   {
-    float3x3 tmpx = XYZ_to_RGB_limit;
+    float3x3 tmpx = XYZ_to_RGB_limit; // TODO: this temp switch should be fixed.
     float3x3 tmpr = RGB_to_XYZ_limit;
     float3x3 tmpR = XYZ_to_RGB_reach;
 
     if( ccReach == 0 ) // Chroma Compression Space (primaries defined in kernel params)
     {
-        XYZ_to_RGB_limit = RGBPrimsToXYZMatrix(crxy, cgxy, cbxy, cwxy, 1.0f, 1);
+        XYZ_to_RGB_limit = RGBPrimsToXYZMatrix(crxy, cgxy, cbxy, cwxy, 1.0f, 1); // TODO: fix me
         XYZ_to_RGB_reach = XYZ_to_RGB_limit;
     }
     else if( ccReach == 1 )
