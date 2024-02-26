@@ -310,9 +310,6 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     // the maximum lightness value of the limiting gamut
     float limitJmax;
 
-    // the maximum colorfulness value of the limiting gamut
-    float limitMmax;
-
     // Middle gray J
     float midJ;
 
@@ -344,7 +341,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
   // Functions used in ACES 2.0 candidate CAM DRT
 
   // multiplies a 3D vector with a 3x3 matrix
-  float3 vector_dot( float3x3 m, float3 v)
+  float3 vector_dot( const float3x3& m, const float3 v)
   {
     float3 r = 1.0f;
     for(int c = 0; c<3; c++)
@@ -360,9 +357,15 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
   {
     return a + t * (b - a);
   }
-
-  // linear interpolation between two float4 values a & b with the bias t
-  float4 lerp4(float4 a, float4 b, float t)
+  float2 lerp(float2 a, float2 b, float t)
+  {
+    return a + t * (b - a);
+  }
+  float3 lerp(float3 a, float3 b, float t)
+  {
+    return a + t * (b - a);
+  }
+  float4 lerp(float4 a, float4 b, float t)
   {
     return a + t * (b - a);
   }
@@ -1048,34 +1051,23 @@ float3 uncompress_bjorn(float3 xyz)
       return luminanceRGB;
   }
 
-
   // convert linear RGB values with the given primaries to CAM J (lightness), M (colorfulness) and h (hue) correlates
-  float3 RGB_to_JMh(float3 RGB, float3x3 matrix)
+  float3 RGB_to_JMh(const float3 RGB, const float3x3& matrix)
   {
-    float3 luminanceRGB = RGB * boundaryRGB *referenceLuminance;
-    float3 XYZ = vector_dot(matrix, luminanceRGB);
-    float3 JMh = XYZ_to_JMh(XYZ, refWhite, viewingConditions, L_A, Y_b, discountIlluminant_mid, HK_mode_mid);
+    const float3 luminanceRGB = RGB * boundaryRGB *referenceLuminance;
+    const float3 XYZ = vector_dot(matrix, luminanceRGB);
+    const float3 JMh = XYZ_to_JMh(XYZ, refWhite, viewingConditions, L_A, Y_b, discountIlluminant_mid, HK_mode_mid);
     return JMh;
   }
 
-
-  // convert CAM J (lightness), M (colorfulness) and h (hue) correlates to linear RGB values with the limiting primaries
-  float3 JMh_to_limit_RGB(float3 JMh)
+  // convert CAM J (lightness), M (colorfulness) and h (hue) correlates to linear RGB values with the given primaries
+  float3 JMh_to_RGB(float3 JMh, const float3x3& matrix)
   {
     float3 luminanceXYZ = JMh_to_XYZ( JMh, refWhite, viewingConditions, L_A, Y_b, discountIlluminant_mid, HK_mode_mid );
-    float3 luminanceRGB = vector_dot(XYZ_to_RGB_limit, luminanceXYZ);
+    float3 luminanceRGB = vector_dot(matrix, luminanceXYZ);
     float3 RGB = luminanceRGB / boundaryRGB / referenceLuminance;
     return RGB;
   }
-
-    // convert CAM J (lightness), M (colorfulness) and h (hue) correlates to linear RGB values with the reach primaries
-    float3 JMh_to_reach_RGB(float3 JMh)
-    {
-        float3 luminanceXYZ = JMh_to_XYZ( JMh, refWhite, viewingConditions, L_A, Y_b, discountIlluminant_mid, HK_mode_mid );
-        float3 luminanceRGB = vector_dot(XYZ_to_RGB_reach, luminanceXYZ);
-        float3 RGB = luminanceRGB / boundaryRGB / referenceLuminance;
-        return RGB;
-    }
 
   // XYZ to Hellwig2020 JMh
   //
@@ -1110,14 +1102,13 @@ float3 uncompress_bjorn(float3 xyz)
 
         // # Step 0
         // # Converting *CIE XYZ* tristimulus values to sharpened *RGB* values.
-        float3x3 MATRIX_16 = CAT_CAT16;
-        float3 RGB_w = vector_dot(MATRIX_16, XYZ_w);
+        float3 RGB_w = vector_dot(CAT_CAT16, XYZ_w);
 
         // # Computing degree of adaptation :math:`D`.
-        float D = clip(degree_of_adaptation(surround.x, L_A), 0, 1);
-        if(discountIlluminant)
+        float D = 1.0f;
+        if(!discountIlluminant)
         {
-            D = 1.0f;
+            D = clip(degree_of_adaptation(surround.x, L_A), 0, 1);
         }
 
         // # Viewing conditions dependent parameters
@@ -1140,7 +1131,7 @@ float3 uncompress_bjorn(float3 xyz)
 
         // # Step 1
         // # Converting *CIE XYZ* tristimulus values to sharpened *RGB* values.
-        float3 RGB = vector_dot(MATRIX_16, XYZ);
+        float3 RGB = vector_dot(CAT_CAT16, XYZ);
 
         // # Step 2
         float3 RGB_c = D_RGB * RGB;
@@ -1224,14 +1215,13 @@ float3 uncompress_bjorn(float3 xyz)
   
         // # Step 0
         // # Converting *CIE XYZ* tristimulus values to sharpened *RGB* values.
-        float3x3 MATRIX_16 = CAT_CAT16;
-        float3 RGB_w = vector_dot(MATRIX_16, XYZ_w);
+        float3 RGB_w = vector_dot(CAT_CAT16, XYZ_w);
 
         // # Computing degree of adaptation :math:`D`.
-        float D = clip(degree_of_adaptation(surround.x, L_A), 0, 1);
-        if(discountIlluminant)
+        float D = 1.0f;
+        if(!discountIlluminant)
         {
-            D = 1.0f;
+            D = clip(degree_of_adaptation(surround.x, L_A), 0, 1);
         }
 
         // # Viewing conditions dependent parameters
@@ -1494,43 +1484,16 @@ float3 uncompress_bjorn(float3 xyz)
 
   float cReachFromTable(float h)
   {
-    float3 lo;
-    float3 hi;
-
-    if( h <= cgamutReachTable[0].z )
+    int i = int(h) % gamutCuspTableSize;
+    if (i < 0)
     {
-      lo = cgamutReachTable[gamutCuspTableSize-1];
-      lo.z = lo.z-360.0f;
-      hi = cgamutReachTable[0];
-    }
-    else if( h >= cgamutReachTable[gamutCuspTableSize-1].z )
-    {
-      lo = cgamutReachTable[gamutCuspTableSize-1];
-      hi = cgamutReachTable[0];
-      hi.z = hi.z+360.f;
-    }
-    else
-    {
-      int low_i = 0;
-      int high_i = gamutCuspTableSize-1;
-      int i = int(h) % gamutCuspTableSize;
-      while (low_i + 1 < high_i)
-      {
-        if (h > cgamutReachTable[i].z )
-        {
-          low_i = i;
-        }
-        else
-        {
-          high_i = i;
-        }
-        i = int((high_i + low_i) / 2); // Integer division
-      }
-      lo = cgamutReachTable[high_i-1];
-      hi = cgamutReachTable[high_i];
+      i = i + gamutCuspTableSize;
     }
 
-    float t = (h - lo.z) / (hi.z - lo.z);
+    const float3 lo = cgamutReachTable[i];
+    const float3 hi = cgamutReachTable[(i+1) % gamutCuspTableSize];
+
+    const float t = (h - lo.z) / (hi.z - lo.z);
     return lerp(lo.y, hi.y, t);
   }
 
@@ -1960,42 +1923,14 @@ float3 uncompress_bjorn(float3 xyz)
     float3 lo;
     float3 hi;
 
-    if( h <= gamutCuspTableReach[0].z )
+    int i = int(h) % gamutCuspTableSize;
+    if (i < 0)
     {
-      lo = gamutCuspTableReach[gamutCuspTableSize-1];
-      lo.z = lo.z-360.0f;
-      hi = gamutCuspTableReach[0];
+      i = i + gamutCuspTableSize;
     }
-    else if( h >= gamutCuspTableReach[gamutCuspTableSize-1].z )
-    {
-      lo = gamutCuspTableReach[gamutCuspTableSize-1];
-      hi = gamutCuspTableReach[0];
-      hi.z = hi.z+360.f;
-    }
-    else
-    {
-      int low_i = 0;
-      int high_i = gamutCuspTableSize-1;
-      int i = int(h) % gamutCuspTableSize;
-      if (i < 0)
-      {
-        i = i + gamutCuspTableSize;
-      }
-      while (low_i + 1 < high_i)
-      {
-        if (h > gamutCuspTableReach[i].z )
-        {
-          low_i = i;
-        }
-        else
-        {
-          high_i = i;
-        }
-        i = int((high_i + low_i) / 2); // Integer division
-      }
-      lo = gamutCuspTableReach[high_i-1];
-      hi = gamutCuspTableReach[high_i];
-    }
+
+    lo = gamutCuspTableReach[i];
+    hi = gamutCuspTableReach[(i+1) % gamutCuspTableSize];
 
     const float t = (h - lo.z) / (hi.z - lo.z);
 
@@ -2062,37 +1997,37 @@ float3 uncompress_bjorn(float3 xyz)
       if (h>=angleR && h<angleY)
       {
         lerpVal = (h-angleR)/(angleY-angleR);
-        return lerp4(compressionFuncParamsR, compressionFuncParamsY, lerpVal);
+        return lerp(compressionFuncParamsR, compressionFuncParamsY, lerpVal);
       }
       if (h>=angleY && h<angleG)
       {
         lerpVal = (h-angleY)/(angleG-angleY);
-        return lerp4(compressionFuncParamsY, compressionFuncParamsG, lerpVal);
+        return lerp(compressionFuncParamsY, compressionFuncParamsG, lerpVal);
       }
       if (h>=angleG && h<angleC)
       {
           lerpVal = (h-angleG)/(angleC-angleG);
-          return lerp4(compressionFuncParamsG, compressionFuncParamsC, lerpVal);
+          return lerp(compressionFuncParamsG, compressionFuncParamsC, lerpVal);
       }
       if (h>=angleC && h<angleB)
       {
           lerpVal = (h-angleC)/(angleB-angleC);
-          return lerp4(compressionFuncParamsC, compressionFuncParamsB, lerpVal);
+          return lerp(compressionFuncParamsC, compressionFuncParamsB, lerpVal);
       }
       if (h>=angleB && h<angleM)
       {
           lerpVal = (h-angleB)/(angleM-angleB);
-          return lerp4(compressionFuncParamsB, compressionFuncParamsM, lerpVal);
+          return lerp(compressionFuncParamsB, compressionFuncParamsM, lerpVal);
       }
       if (h>=angleM && h<angleR+360.0f)
       {
           lerpVal = (h-angleM)/(angleR+360.0f-angleM);
-          return lerp4(compressionFuncParamsM, compressionFuncParamsR, lerpVal);
+          return lerp(compressionFuncParamsM, compressionFuncParamsR, lerpVal);
       }
       if (h<angleR)
       {
           lerpVal = (h+360.0f-angleM)/(angleR+360.0f-angleM);
-          return lerp4(compressionFuncParamsM, compressionFuncParamsR, lerpVal);
+          return lerp(compressionFuncParamsM, compressionFuncParamsR, lerpVal);
       }
       else
       {
@@ -2502,23 +2437,6 @@ float3 uncompress_bjorn(float3 xyz)
     // limitJmax (assumed to match limitRGB white)
     limitJmax = RGB_to_JMh(float3(1.0f), RGB_to_XYZ_limit).x;
 
-    // limitMmax (assumed to coincide with one of the RGBCMY corners of the limitRGB cube)
-    float3 gamutCornersTable[6];
-    gamutCornersTable[0] = RGB_to_JMh(float3(1.0f, 0.0f, 0.0f), RGB_to_XYZ_limit);
-    gamutCornersTable[1] = RGB_to_JMh(float3(1.0f, 1.0f, 0.0f), RGB_to_XYZ_limit);
-    gamutCornersTable[2] = RGB_to_JMh(float3(0.0f, 1.0f, 0.0f), RGB_to_XYZ_limit);
-    gamutCornersTable[3] = RGB_to_JMh(float3(0.0f, 1.0f, 1.0f), RGB_to_XYZ_limit);
-    gamutCornersTable[4] = RGB_to_JMh(float3(0.0f, 0.0f, 1.0f), RGB_to_XYZ_limit);
-    gamutCornersTable[5] = RGB_to_JMh(float3(1.0f, 0.0f, 1.0f), RGB_to_XYZ_limit);
-
-    limitMmax = 0.0f;
-    for( int i = 0; i < 6; ++i )
-    {
-        limitMmax = max(limitMmax, gamutCornersTable[i].y);
-    }
-    // add a little bit of margin to deal with some reddish pinks having a higher M than pure Red
-    limitMmax = limitMmax * 1.2f;
-
   // Cusp table for chroma compression gamut
   {
     float3x3 tmpx = XYZ_to_RGB_limit; // TODO: this temp switch should be fixed.
@@ -2560,18 +2478,17 @@ float3 uncompress_bjorn(float3 xyz)
     // Cusp table for limiting gamut
     initialise_cusp_table(gamutCuspTable, RGB_to_XYZ_limit);
 
-    initialise_reach_cusp_table();
+    initialise_reach_cusp_table(XYZ_to_RGB_reach);
 
     midJ = XYZ_to_JMh(refWhite * daniele_c_t * mmScaleFactor, refWhite, outputViewingConditions, L_A_out, Y_b_out, discountIlluminant_mid, HK_mode_mid).x;
 
     initialise_upper_hull_gamma();
     initialise_lower_hull_gamma();
 
-    // Cusp table for AP1 gamut
     initialise_cusp_table(gamutCuspTableAP1, AP1_to_XYZ);
   }
 
-  void initialise_cusp_table(float3 output_table[], float3x3 matrix)
+  void initialise_cusp_table(float3 output_table[], const float3x3& matrix)
   {
     int minhIndex = 0;
     for( int i = 0; i < gamutCuspTableSize; ++i )
@@ -2595,7 +2512,7 @@ float3 uncompress_bjorn(float3 xyz)
     }
   }
 
-  void initialise_reach_cusp_table()
+  void initialise_reach_cusp_table(const float3x3& matrix)
   {
     // Cusp table for limiting reach gamut, values at a J of 100.  Covers M values
     // up to 10000 nits.
@@ -2608,7 +2525,7 @@ float3 uncompress_bjorn(float3 xyz)
 
       while (!outside && high < 1400.0)
       {
-        outside = any_below_zero(JMh_to_reach_RGB(float3(limitJmax, high, i)));
+        outside = any_below_zero(JMh_to_RGB(float3(limitJmax, high, i), matrix));
         if (!outside)
         {
           low = high;
@@ -2619,7 +2536,7 @@ float3 uncompress_bjorn(float3 xyz)
       while ((high - low) > 1e-2)
       {
         const float sampleM = (high + low) / 2.0;
-        outside = any_below_zero(JMh_to_reach_RGB(float3(limitJmax, sampleM, i)));
+        outside = any_below_zero(JMh_to_RGB(float3(limitJmax, sampleM, i), matrix));
         if (outside)
         {
           high = sampleM;
@@ -2648,7 +2565,7 @@ float3 uncompress_bjorn(float3 xyz)
 
       while (!outside && high < 1400.0)
       {
-        outside = any_below_zero(JMh_to_reach_RGB(float3(limitJmax, high, i)));
+        outside = any_below_zero(JMh_to_RGB(float3(limitJmax, high, i), XYZ_to_RGB_reach));
         if (!outside)
         {
           low = high;
@@ -2659,7 +2576,7 @@ float3 uncompress_bjorn(float3 xyz)
       while ((high - low) > 1e-2)
       {
         const float sampleM = (high + low) / 2.0;
-        outside = any_below_zero(JMh_to_reach_RGB(float3(limitJmax, sampleM, i)));
+        outside = any_below_zero(JMh_to_RGB(float3(limitJmax, sampleM, i), XYZ_to_RGB_reach));
         if (outside)
         {
           high = sampleM;
@@ -2692,7 +2609,7 @@ float3 uncompress_bjorn(float3 xyz)
     {
       const float3 approxLimit = findGamutBoundaryIntersection(testJmh[testIndex], JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend), limitJmax, 10000.0f, 0.0f, topGamma, 1.0f);
       const float3 approximate_JMh = float3(approxLimit.x, approxLimit.y, testJmh[testIndex].z);
-      const float3 newLimitRGB = JMh_to_limit_RGB(approximate_JMh);
+      const float3 newLimitRGB = JMh_to_RGB(approximate_JMh,XYZ_to_RGB_limit);
 
       if (!outside_hull(newLimitRGB))
       {
@@ -2775,7 +2692,7 @@ float3 uncompress_bjorn(float3 xyz)
     {
       const float3 approxLimit = findGamutBoundaryIntersection(testJmh[testIndex], JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend), limitJmax, 10000.0f, 0.0f, 1.0f, bottomGamma);
       const float3 approximate_JMh = float3(approxLimit.x, approxLimit.y, testJmh[testIndex].z);
-      const float3 newLimitRGB = JMh_to_limit_RGB(approximate_JMh);
+      const float3 newLimitRGB = JMh_to_RGB(approximate_JMh, XYZ_to_RGB_limit);
 
       if (!any_below_zero(newLimitRGB))
       {
@@ -2914,17 +2831,20 @@ float3 uncompress_bjorn(float3 xyz)
     else if (diagnosticMode == 14)
     {
       // output gamut cusp
-      diagnostic = float3(cuspFromTable(srcRGB.z).x, cuspFromTable(srcRGB.z).y, srcRGB.z);
+      const float2 JMcusp = cuspFromTable(srcRGB.z);
+      diagnostic = float3(JMcusp.x, JMcusp.y, srcRGB.z);
     }
     else if (diagnosticMode == 15)
     {
       // output AP1 cusp
-      diagnostic = float3(cuspFromTableAP1(srcRGB.z).x, cuspFromTableAP1(srcRGB.z).y, srcRGB.z);
+      const float2 JMcusp = cuspFromTableAP1(srcRGB.z);
+      diagnostic = float3(JMcusp.x, JMcusp.y, srcRGB.z);
     }
     else if (diagnosticMode == 16)
     {
       // output Locus cusp
-      diagnostic = float3(cuspFromTableLocus(srcRGB.z).x, cuspFromTableLocus(srcRGB.z).y, srcRGB.z);
+      const float2 JMcusp = cuspFromTableLocus(srcRGB.z);
+      diagnostic = float3(JMcusp.x, JMcusp.y, srcRGB.z);
     }
     else if (diagnosticMode == 17)
     {
@@ -2975,7 +2895,7 @@ float3 uncompress_bjorn(float3 xyz)
     float slope_gain = limitJmax * focusDist;
     float3 testJmh = float3(JMcusp.x + ((limitJmax - JMcusp.x) / 2.0f ), JMcusp.y , srcRGB.z);
     float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh,         JMcusp,(JMcusp.x+38.0f)/2,   limitJmax,       slope_gain,      smoothCusps,       hueDependantUpperHullGamma(srcRGB.z),hueDependantLowerHullGamma(srcRGB.z));
-    float3 newLimitRGB = JMh_to_limit_RGB(float3(approxLimit.x, approxLimit.y, srcRGB.z));
+    float3 newLimitRGB = JMh_to_RGB(float3(approxLimit.x, approxLimit.y, srcRGB.z), XYZ_to_RGB_limit);
     diagnostic = newLimitRGB;
     }
 
