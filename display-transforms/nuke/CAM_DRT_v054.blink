@@ -389,7 +389,7 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
 
     // np.sign(a) * pow(np.abs(a) , b) 
 
-    // float a_p =  sign(a) * pow(fabs(a) , b) ;
+    // float a_p = sign(a) * pow(fabs(a) , b) ;
     // if ( isnan(a_p) )
     // {
     //     a_p = a_p;
@@ -420,7 +420,6 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     return v;
   }
 
-
   float3 float3spow( float3 base, float exponent )
   {
       return float3(spow(base.x, exponent), spow(base.y, exponent), spow(base.z, exponent));
@@ -436,21 +435,20 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
       return float3(sign(v.x), sign(v.y), sign(v.z));
   }
 
-
   float3 float3abs( float3 a )
   {
     return fabs(a);
   }
 
-    // "safe" div
-    float sdiv( float a, float b )
+  // "safe" div
+  float sdiv( float a, float b )
+  {
+    if(b == 0.0f)
     {
-        if(b == 0.0f)
-        {
-        return 0.0f;
-        }
-        return a / b;
-        }
+      return 0.0f;
+    }
+    return a / b;
+  }
     
   float clip(float x, float a, float b)
   {
@@ -558,8 +556,8 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
     return xyz_temp;
   }
 
-float3 uncompress_bjorn(float3 xyz)
-{
+  float3 uncompress_bjorn(float3 xyz)
+  {
     float C = (xyz.x+xyz.y+xyz.z)/3;
 
     float3 xyz_temp = xyz - C;
@@ -587,8 +585,7 @@ float3 uncompress_bjorn(float3 xyz)
     xyz_temp = xyz_temp * r + C;
 
     return xyz_temp;
-}
-
+  }
 
   float hue_angle_dependency_Hellwig2022(float hr)
   {
@@ -598,8 +595,7 @@ float3 uncompress_bjorn(float3 xyz)
     - 0.405 * sin(hr)
     + 0.080 * sin(2 * hr)
     + 0.792;
-    }
-
+  }
 
   float3x3  RGBPrimsToXYZMatrix(float2 rxy, float2 gxy, float2 bxy, float2 wxy,float Y, bool direction)
   {
@@ -681,7 +677,6 @@ float3 uncompress_bjorn(float3 xyz)
     return v > 0.0078125f ? (log2(v) + 9.72f) / 17.52f : 10.5402377416545f * v + 0.0729055341958355f;
   }
 
-
   // convert sRGB gamma encoded values to linear
   float sRGB_to_linear( float v )
   {
@@ -704,7 +699,7 @@ float3 uncompress_bjorn(float3 xyz)
   float3 post_adaptation_non_linear_response_compression_inverse(float3 RGB,float F_L)
   {
       const float3 absRGB = float3abs(RGB);
-      const float3 RGB_p =  (float3sign(RGB) * 100.0f / F_L * float3pow((27.13f * absRGB) / (400.0f - absRGB), 1.0f / 0.42f) );
+      const float3 RGB_p = float3sign(RGB) * 100.0f / F_L * float3pow((27.13f * absRGB) / (400.0f - absRGB), 1.0f / 0.42f);
       return RGB_p;
   }
 
@@ -721,7 +716,6 @@ float3 uncompress_bjorn(float3 xyz)
     RGB.z = (HSV.x<1.0f/6.0f?0.0f:HSV.x<2.0f/6.0f?0.0f:HSV.x<3.0f/6.0f?  X :HSV.x<4.0f/6.0f?  C :HSV.x<5.0f/6.0f?  C :  X )+m;
     return RGB;
   }
-
 
   // convert RGB to HSV cylindrical projection values
   float3 RGB_to_HSV( float3 RGB )
@@ -815,7 +809,6 @@ float3 uncompress_bjorn(float3 xyz)
     clamped.y = clamp(normv.y, radius, 1.0f-radius);
     clamped.z = clamp(normv.z, radius, 1.0f-radius);
 
-
     if( length(normv - clamped ) > radius)
     {
       return 0;
@@ -850,7 +843,6 @@ float3 uncompress_bjorn(float3 xyz)
       }
       return newSurround;
   }
-
 
   // convert XYZ tristimulus values to the CAM J (lightness), M (colorfulness) and h (hue) correlates
   // needs XYZ tristimulus values for the reference white and the viewing conditions as parameters
@@ -1690,7 +1682,7 @@ float3 uncompress_bjorn(float3 xyz)
     // switch for applying the different tonescale compression functions
     if ( toneScaleMode == 0 )
     {
-      luminanceTS =  linear;
+      luminanceTS = linear;
     }
     else if( toneScaleMode == 1 )
     {
@@ -1882,12 +1874,12 @@ float3 uncompress_bjorn(float3 xyz)
     if ( m*xc + c < yc)
     {
         //    below cusp
-        xi = spow((1-mf) , (g1 - 1 ))  * ((yc*spow((c/yc) , (1.0/g1))) / (yc/xc-m));
+        xi = spow((1-mf) , (g1 - 1 )) * ((yc*spow((c/yc) , (1.0/g1))) / (yc/xc-m));
     }    
     else
     {
         //    above cusp
-        xi =    spow((1+mf) , ((g2-1)))    *    (   xc * (limitJmax - yc) * spow(((limitJmax-c)/(limitJmax-yc)) , (1/g2))   / (m * xc + limitJmax - yc));
+        xi = spow((1+mf) , ((g2-1))) * (xc * (limitJmax - yc) * spow(((limitJmax-c)/(limitJmax-yc)) , (1/g2)) / (m * xc + limitJmax - yc));
     }
     float yi = (m * xi) +c;
     if (yi > limitJmax)
@@ -1906,7 +1898,7 @@ float3 uncompress_bjorn(float3 xyz)
     float2 cuspLocus = cuspFromTableLocus(h);
     float cuspTarget100 = cuspLocus.y;
     float cuspTarget = cuspTarget100 * pow((Jmh.x/100.0f), model_gamma);
-    float difference =  cuspLocus.y / cuspTarget;
+    float difference = cuspLocus.y / cuspTarget;
     return float3(Jmh.x,cuspTarget,Jmh.z);
   }
 
@@ -1971,7 +1963,7 @@ float3 uncompress_bjorn(float3 xyz)
         {
             // use locus based reach
             float locusMax = getLocusBoundry(Jmh).y;
-            float difference =  locusMax / Jmh.y;
+            float difference = locusMax / Jmh.y;
             return float4(compressionFuncParams.x,difference,difference,compressionFuncParams.w);
         }
     }
@@ -2117,7 +2109,7 @@ float3 uncompress_bjorn(float3 xyz)
     {
         float gamma_top    = hueDependantUpperHullGamma(JMh.z);
         float gamma_bottom = hueDependantLowerHullGamma(JMh.z);
-        float3 nickBoundryReturn =  findGamutBoundaryIntersection(        JMh,         JMcusp,        focusJ,   limitJmax,       slope_gain, smoothCusps,gamma_top, gamma_bottom);
+        float3 nickBoundryReturn = findGamutBoundaryIntersection(JMh, JMcusp, focusJ, limitJmax, slope_gain, smoothCusps,gamma_top, gamma_bottom);
         JMboundary = float2(nickBoundryReturn.x,nickBoundryReturn.y);
         project_to = float2(nickBoundryReturn.z,0.0f);
         projectJ = nickBoundryReturn.z;
@@ -2725,11 +2717,11 @@ float3 uncompress_bjorn(float3 xyz)
       // Mode 6 actually returns XYZ, mode 1 returns real JMh
       if( invert )
       {
-        diagnostic =  JMh_to_input_RGB(srcRGB);
+        diagnostic = JMh_to_input_RGB(srcRGB);
       }
       else
       {
-        diagnostic =  JMh;
+        diagnostic = JMh;
       }
 
     }
@@ -2739,26 +2731,26 @@ float3 uncompress_bjorn(float3 xyz)
     }
     else if ( diagnosticMode == 3 || diagnosticMode == 5 )
     {
-      diagnostic =  compressedJMh;
+      diagnostic = compressedJMh;
     }
     else if ( diagnosticMode == 4 || diagnosticMode == 7 )
     {
       if (diagnosticMode == 4)
         srcRGB = JMh;
       dstRGB = JMh_to_output_RGB(srcRGB);
-      diagnostic =  dstRGB;
+      diagnostic = dstRGB;
     }
     else if ( diagnosticMode == 8)
     {
-      diagnostic =  inWhite;
+      diagnostic = inWhite;
     }
     else if ( diagnosticMode == 9)
     {
-      diagnostic =  outWhite;
+      diagnostic = outWhite;
     }
     else if ( diagnosticMode == 10)
     {
-      diagnostic =  limitWhite;
+      diagnostic = limitWhite;
     }
     else if (diagnosticMode == 12)
     {
@@ -2826,7 +2818,7 @@ float3 uncompress_bjorn(float3 xyz)
     // create test value halfway between the cusp and the Jmax
     float slope_gain = limitJmax * focusDist;
     float3 testJmh = float3(JMcusp.x + ((limitJmax - JMcusp.x) / 2.0f ), JMcusp.y , srcRGB.z);
-    float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh,         JMcusp,(JMcusp.x+38.0f)/2,   limitJmax,       slope_gain,      smoothCusps,       hueDependantUpperHullGamma(srcRGB.z),hueDependantLowerHullGamma(srcRGB.z));
+    float3 approxLimit = findGamutBoundaryIntersection(testJmh, JMcusp,(JMcusp.x+38.0f)/2, limitJmax, slope_gain, smoothCusps, hueDependantUpperHullGamma(srcRGB.z),hueDependantLowerHullGamma(srcRGB.z));
     diagnostic = float3(approxLimit.x, approxLimit.y, srcRGB.z);
     }
 
@@ -2836,7 +2828,7 @@ float3 uncompress_bjorn(float3 xyz)
     // create test value halfway between the cusp and the Jmax
     float slope_gain = limitJmax * focusDist;
     float3 testJmh = float3(JMcusp.x + ((limitJmax - JMcusp.x) / 2.0f ), JMcusp.y , srcRGB.z);
-    float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh,         JMcusp,(JMcusp.x+38.0f)/2,   limitJmax,       slope_gain,      smoothCusps,       hueDependantUpperHullGamma(srcRGB.z),hueDependantLowerHullGamma(srcRGB.z));
+    float3 approxLimit = findGamutBoundaryIntersection(testJmh, JMcusp,(JMcusp.x+38.0f)/2, limitJmax, slope_gain, smoothCusps, hueDependantUpperHullGamma(srcRGB.z),hueDependantLowerHullGamma(srcRGB.z));
     float3 newLimitRGB = JMh_to_RGB(float3(approxLimit.x, approxLimit.y, srcRGB.z), XYZ_to_RGB_limit);
     diagnostic = newLimitRGB;
     }
@@ -2846,7 +2838,7 @@ float3 uncompress_bjorn(float3 xyz)
       float2 JMcusp = cuspFromTable(srcRGB.z);
       float slope_gain = limitJmax * focusDist;
       float focusJ = lerp(JMcusp.x, midJ, cuspMidBlend);
-      float3 nickBoundryReturn =  findGamutBoundaryIntersection(        srcRGB,         JMcusp,        focusJ,   limitJmax,       slope_gain, smoothCusps,       hueDependantUpperHullGamma(srcRGB.z),hueDependantLowerHullGamma(srcRGB.z));
+      float3 nickBoundryReturn = findGamutBoundaryIntersection(srcRGB, JMcusp, focusJ, limitJmax, slope_gain, smoothCusps, hueDependantUpperHullGamma(srcRGB.z),hueDependantLowerHullGamma(srcRGB.z));
       diagnostic = float3(srcRGB.x,nickBoundryReturn.y,srcRGB.z);
     }
     else if (diagnosticMode == 26)
@@ -2864,7 +2856,7 @@ float3 uncompress_bjorn(float3 xyz)
     {
       // output 
       float2 JMcusp = cuspFromTable(srcRGB.z);
-      diagnostic = findGamutBoundaryIntersection(        srcRGB,         JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend),   limitJmax,       10000.0f,      0.0f,       hueDependantUpperHullGamma(srcRGB.z),hueDependantLowerHullGamma(srcRGB.z));
+      diagnostic = findGamutBoundaryIntersection(srcRGB, JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend), limitJmax, 10000.0f, 0.0f, hueDependantUpperHullGamma(srcRGB.z),hueDependantLowerHullGamma(srcRGB.z));
     }
 
     // extra modes to allow for easier breakout of the order of events.
