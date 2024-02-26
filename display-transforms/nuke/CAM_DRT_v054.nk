@@ -198,7 +198,9 @@ Group {
   DRT_CAM_Kernel_applyReachClamp {{parent.applyReachClamp}}
   DRT_CAM_Kernel_monochrome {{parent.monochrome}}
   DRT_CAM_Kernel_chroma_compress {{parent.compress}}
+  "DRT_CAM_Kernel_Chroma Compress Factor" {{parent.chroma_compress_fact}}
   DRT_CAM_Kernel_chroma_expand {{parent.chroma_expand}}
+  "DRT_CAM_Kernel_Chroma Expansion Factor" {{parent.chroma_expand_fact}}
   DRT_CAM_Kernel_chroma_expand_thr {{parent.chroma_expand_thr}}
   DRT_CAM_Kernel_cc_et {{parent.et}}
   DRT_CAM_Kernel_ccReach {{parent.ccReachPrimaries}}
@@ -231,6 +233,8 @@ Group {
   DRT_CAM_Kernel_lowerHullGamma {{lowerHullGamma}}
   DRT_CAM_Kernel_upperHullGamma {{parent.upperHullGamma}}
   DRT_CAM_Kernel_smoothCusps {{parent.smooth_cusps}}
+  "DRT_CAM_Kernel_Smoothing factor cusp J" {{parent.smoothJ}}
+  "DRT_CAM_Kernel_Smoothing factor cust M" {{parent.smoothM}}
   DRT_CAM_Kernel_encodingOut {{parent.encoding_out}}
   DRT_CAM_Kernel_primariesOut {{parent.primaries_out}}
   DRT_CAM_Kernel_fitWhite {{parent.fit_white}}
