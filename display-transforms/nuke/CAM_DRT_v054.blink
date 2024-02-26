@@ -1303,11 +1303,8 @@ float3 uncompress_bjorn(float3 xyz)
   {
       int low_i = 0;
       int high_i = table_size-1;
-      int i = int(h) % table_size;
-      if (i < 0)
-      {
-        i = i + table_size;
-      }
+      int i = hue_position_in_uniform_table(h, table_size); 
+
       while (low_i + 1 < high_i)
       {
         if (h > table[i].z )
@@ -1327,7 +1324,6 @@ float3 uncompress_bjorn(float3 xyz)
   {
     float3 lo;
     float3 hi;
-
     if( h <= gamutCuspTable[0].z )
     {
       lo = gamutCuspTable[gamutCuspTableSize-1];
@@ -1344,11 +1340,8 @@ float3 uncompress_bjorn(float3 xyz)
     {
       int low_i = 0;
       int high_i = gamutCuspTableSize-1;
-      int i = int(h) % gamutCuspTableSize;
-      if (i < 0)
-      {
-        i = i + gamutCuspTableSize;
-      }
+      int i = hue_position_in_uniform_table(h, gamutCuspTableSize); 
+
       while (low_i + 1 < high_i)
       {
         if (h > gamutCuspTable[i].z )
@@ -1395,11 +1388,8 @@ float3 uncompress_bjorn(float3 xyz)
     {
       int low_i = 0;
       int high_i = gamutCuspTableSize-1;
-      int i = int(h) % gamutCuspTableSize;
-      if (i < 0)
-      {
-        i = i + gamutCuspTableSize;
-      }
+      int i = hue_position_in_uniform_table(h, gamutCuspTableSize); 
+
       while (low_i + 1 < high_i)
       {
         if (h > gamutCuspTableAP1[i].z )
@@ -1453,11 +1443,8 @@ float3 uncompress_bjorn(float3 xyz)
     {
       int low_i = 0;
       int high_i = gamutCuspTableSize-1;
-      int i = int(h) % gamutCuspTableSize;
-      if (i < 0)
-      {
-        i = i + gamutCuspTableSize;
-      }
+      int i = hue_position_in_uniform_table(h, gamutCuspTableSize); 
+
       while (low_i + 1 < high_i)
       {
         if (h > cgamutCuspTable[i].z )
@@ -1482,13 +1469,19 @@ float3 uncompress_bjorn(float3 xyz)
     return float2(cuspJ,cuspM);
   }
 
+  int hue_position_in_uniform_table(float hue, int table_size)
+  {
+    int entry = int(hue / 360.0 * table_size) % table_size;
+    if (entry < 0)
+    {
+      entry = entry + gamutCuspTableSize;
+    }
+    return entry;
+  }
+
   float cReachFromTable(float h)
   {
-    int i = int(h) % gamutCuspTableSize; // TODO: the int(h) still assumes 360 entries
-    if (i < 0)
-    {
-      i = i + gamutCuspTableSize;
-    }
+    const int i = hue_position_in_uniform_table(h, gamutCuspTableSize); 
 
     const float3 lo = cgamutReachTable[i];
     const float3 hi = cgamutReachTable[(i+1) % gamutCuspTableSize];
@@ -1920,17 +1913,10 @@ float3 uncompress_bjorn(float3 xyz)
   float3 getReachBoundry(float3 Jmh)
   {
     const float h = Jmh.z;
-    float3 lo;
-    float3 hi;
 
-    int i = int(h) % gamutCuspTableSize; // TODO: int(h) assumes 360 table entries
-    if (i < 0)
-    {
-      i = i + gamutCuspTableSize;
-    }
-
-    lo = gamutCuspTableReach[i];
-    hi = gamutCuspTableReach[(i+1) % gamutCuspTableSize];
+    const int i = hue_position_in_uniform_table(h, gamutCuspTableSize); 
+    const float3 lo = gamutCuspTableReach[i];
+    const float3 hi = gamutCuspTableReach[(i+1) % gamutCuspTableSize];
 
     const float t = (h - lo.z) / (hi.z - lo.z);
 
@@ -2506,7 +2492,7 @@ float3 uncompress_bjorn(float3 xyz)
   {
     for( int i = 0; i < tableSize; ++i )
     {
-      output_table[i] = tableUnsorted[(offsetIndex+i)%tableSize];
+      output_table[i] = tableUnsorted[(offsetIndex+i)% tableSize];
     }
   }
 
