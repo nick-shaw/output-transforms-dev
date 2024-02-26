@@ -427,6 +427,11 @@ kernel DRT_CAM_Kernel : ImageComputationKernel<ePixelWise>
       return float3(spow(base.x, exponent), spow(base.y, exponent), spow(base.z, exponent));
   }
 
+  float3 float3pow( float3 base, float exponent )
+  {
+      return float3(pow(base.x, exponent), pow(base.y, exponent), pow(base.z, exponent));
+  }
+
   float3 float3sign( float3 v )
   {
       return float3(sign(v.x), sign(v.y), sign(v.z));
@@ -692,14 +697,15 @@ float3 uncompress_bjorn(float3 xyz)
 
   float3 post_adaptation_non_linear_response_compression_forward(float3 RGB, float F_L)
   {
-      float3 F_L_RGB = float3spow(F_L * float3abs(RGB) / 100.0f, 0.42f);
-      float3 RGB_c = (400.0f * sign(RGB) * F_L_RGB) / (27.13f + F_L_RGB);
+      const float3 F_L_RGB = float3pow(F_L / 100.0f * float3abs(RGB), 0.42f);
+      const float3 RGB_c = (400.0f * sign(RGB) * F_L_RGB) / (27.13f + F_L_RGB);
       return RGB_c;
   }
 
   float3 post_adaptation_non_linear_response_compression_inverse(float3 RGB,float F_L)
   {
-      float3 RGB_p =  (float3sign(RGB) * 100.0f / F_L * float3spow((27.13f * float3abs(RGB)) / (400.0f - float3abs(RGB)), 1.0f / 0.42f) );
+      const float3 absRGB = float3abs(RGB);
+      const float3 RGB_p =  (float3sign(RGB) * 100.0f / F_L * float3pow((27.13f * absRGB) / (400.0f - absRGB), 1.0f / 0.42f) );
       return RGB_p;
   }
 
@@ -1325,9 +1331,33 @@ float3 uncompress_bjorn(float3 xyz)
   // so instead we use a pre-computed table of cusp points
   // sampled at 1 degree hue intervals of the the RGB target gamut
   // and lerp between them to get the approximate J & M values
+
+  int find_upper_hue_in_table(float h, float3 table[], int table_size)
+  {
+      int low_i = 0;
+      int high_i = table_size-1;
+      int i = int(h) % table_size;
+      if (i < 0)
+      {
+        i = i + table_size;
+      }
+      while (low_i + 1 < high_i)
+      {
+        if (h > table[i].z )
+        {
+          low_i = i;
+        }
+        else
+        {
+          high_i = i;
+        }
+        i = int((high_i + low_i) / 2); // Integer division
+      }
+      return high_i;
+  }
+
   float2 cuspFromTable(float h)
   {
-
     float3 lo;
     float3 hi;
 
@@ -1345,15 +1375,27 @@ float3 uncompress_bjorn(float3 xyz)
     }
     else
     {
-      for(int i = 1; i < gamutCuspTableSize; ++i)
+      int low_i = 0;
+      int high_i = gamutCuspTableSize-1;
+      int i = int(h) % gamutCuspTableSize;
+      if (i < 0)
       {
-        if( h <= gamutCuspTable[i].z )
-        {
-          lo = gamutCuspTable[i-1];
-          hi = gamutCuspTable[i];
-          break;
-        }
+        i = i + gamutCuspTableSize;
       }
+      while (low_i + 1 < high_i)
+      {
+        if (h > gamutCuspTable[i].z )
+        {
+          low_i = i;
+        }
+        else
+        {
+          high_i = i;
+        }
+        i = int((high_i + low_i) / 2); // Integer division
+      }
+      lo = gamutCuspTable[high_i-1];
+      hi = gamutCuspTable[high_i];
     }
 
     float t = (h - lo.z) / (hi.z - lo.z);
@@ -1364,7 +1406,7 @@ float3 uncompress_bjorn(float3 xyz)
     return float2(cuspJ,cuspM);
   }
 
-    float2 cuspFromTableAP1(float h)
+  float2 cuspFromTableAP1(float h)
   {
 
     float3 lo;
@@ -1384,15 +1426,27 @@ float3 uncompress_bjorn(float3 xyz)
     }
     else
     {
-      for(int i = 1; i < gamutCuspTableSize; ++i)
+      int low_i = 0;
+      int high_i = gamutCuspTableSize-1;
+      int i = int(h) % gamutCuspTableSize;
+      if (i < 0)
       {
-        if( h <= gamutCuspTableAP1[i].z )
-        {
-          lo = gamutCuspTableAP1[i-1];
-          hi = gamutCuspTableAP1[i];
-          break;
-        }
+        i = i + gamutCuspTableSize;
       }
+      while (low_i + 1 < high_i)
+      {
+        if (h > gamutCuspTableAP1[i].z )
+        {
+          low_i = i;
+        }
+        else
+        {
+          high_i = i;
+        }
+        i = int((high_i + low_i) / 2); // Integer division
+      }
+      lo = gamutCuspTableAP1[high_i-1];
+      hi = gamutCuspTableAP1[high_i];
     }
 
     float t = (h - lo.z) / (hi.z - lo.z);
@@ -1432,15 +1486,27 @@ float3 uncompress_bjorn(float3 xyz)
     }
     else
     {
-      for(int i = 1; i < gamutCuspTableSize; ++i)
+      int low_i = 0;
+      int high_i = gamutCuspTableSize-1;
+      int i = int(h) % gamutCuspTableSize;
+      if (i < 0)
       {
-        if( h <= cgamutCuspTable[i].z )
-        {
-          lo = cgamutCuspTable[i-1];
-          hi = cgamutCuspTable[i];
-          break;
-        }
+        i = i + gamutCuspTableSize;
       }
+      while (low_i + 1 < high_i)
+      {
+        if (h > cgamutCuspTable[i].z )
+        {
+          low_i = i;
+        }
+        else
+        {
+          high_i = i;
+        }
+        i = int((high_i + low_i) / 2); // Integer division
+      }
+      lo = cgamutCuspTable[high_i-1];
+      hi = cgamutCuspTable[high_i];
     }
 
     float t = (h - lo.z) / (hi.z - lo.z);
@@ -1470,15 +1536,23 @@ float3 uncompress_bjorn(float3 xyz)
     }
     else
     {
-      for(int i = 1; i < gamutCuspTableSize; ++i)
+      int low_i = 0;
+      int high_i = gamutCuspTableSize-1;
+      int i = int(h) % gamutCuspTableSize;
+      while (low_i + 1 < high_i)
       {
-        if( h <= cgamutReachTable[i].z )
+        if (h > cgamutReachTable[i].z )
         {
-          lo = cgamutReachTable[i-1];
-          hi = cgamutReachTable[i];
-          break;
+          low_i = i;
         }
+        else
+        {
+          high_i = i;
+        }
+        i = int((high_i + low_i) / 2); // Integer division
       }
+      lo = cgamutReachTable[high_i-1];
+      hi = cgamutReachTable[high_i];
     }
 
     float t = (h - lo.z) / (hi.z - lo.z);
@@ -1933,7 +2007,7 @@ float3 uncompress_bjorn(float3 xyz)
 
   float3 getReachBoundry(float3 Jmh)
   {
-    float h = Jmh.z;
+    const float h = Jmh.z;
     float3 lo;
     float3 hi;
 
@@ -1951,20 +2025,32 @@ float3 uncompress_bjorn(float3 xyz)
     }
     else
     {
-      for(int i = 1; i < gamutCuspTableSize; ++i)
+      int low_i = 0;
+      int high_i = gamutCuspTableSize-1;
+      int i = int(h) % gamutCuspTableSize;
+      if (i < 0)
       {
-        if( h <= gamutCuspTableReach[i].z )
-        {
-          lo = gamutCuspTableReach[i-1];
-          hi = gamutCuspTableReach[i];
-          break;
-        }
+        i = i + gamutCuspTableSize;
       }
+      while (low_i + 1 < high_i)
+      {
+        if (h > gamutCuspTableReach[i].z )
+        {
+          low_i = i;
+        }
+        else
+        {
+          high_i = i;
+        }
+        i = int((high_i + low_i) / 2); // Integer division
+      }
+      lo = gamutCuspTableReach[high_i-1];
+      hi = gamutCuspTableReach[high_i];
     }
 
-    float t = (h - lo.z) / (hi.z - lo.z);
+    const float t = (h - lo.z) / (hi.z - lo.z);
 
-    float reachMaxM = lerp(lo.x, hi.x, t);
+    const float reachMaxM = lerp(lo.x, hi.x, t);
     if( reachNick)
     {
       float2 JMcusp = cuspFromTable(Jmh.z);
@@ -1973,13 +2059,13 @@ float3 uncompress_bjorn(float3 xyz)
       float intersectJ = solve_J_intersect(float2(Jmh.x,Jmh.y), focusJ, limitJmax, slope_gain);
       float slope;
       if (intersectJ < focusJ)
-	  {
-			slope = intersectJ * (intersectJ - focusJ) / (focusJ * slope_gain);
-	  }
-	  else
-	  {
-			slope = (limitJmax - intersectJ) * (intersectJ - focusJ) / (focusJ * slope_gain);
-	  } 
+      {
+        slope = intersectJ * (intersectJ - focusJ) / (focusJ * slope_gain);
+      }
+      else
+      {
+        slope = (limitJmax - intersectJ) * (intersectJ - focusJ) / (focusJ * slope_gain);
+      }
       float boundaryNick = limitJmax * pow(intersectJ/limitJmax, model_gamma) * reachMaxM / (limitJmax - slope * reachMaxM);
       return float3(Jmh.x,boundaryNick,Jmh.z);
     }
@@ -2600,7 +2686,7 @@ float3 uncompress_bjorn(float3 xyz)
 
     // calculate the maximum expected J & M values for the given limit gamut
     // these are used as limiting values for the gamut boundary searches
-    // limitJmax (asumed to match limitRGB white)
+    // limitJmax (assumed to match limitRGB white)
     limitJmax = limit_RGB_to_JMh(float3(1.0f)).x;
 
     // limitMmax (assumed to coincide with one of the RGBCMY corners of the limitRGB cube)
@@ -2666,20 +2752,8 @@ float3 uncompress_bjorn(float3 xyz)
     {
       cgamutCuspTable[i] = gamutCuspTableUnsorted[(minhIndex+i)%gamutCuspTableSize];
     }
-    for( int i = 0; i < gamutCuspTableSize; ++i )
-    {
-      cgamutReachTable[i].z = i;
-      for( int M = 0; M < 1300; ++M )
-      {
-        float sampleM = float(M);
-        float3 newLimitRGB = JMh_to_reach_RGB(float3(limitJmax,sampleM,i));
-        if (newLimitRGB.x < 0.0f || newLimitRGB.y < 0.0f || newLimitRGB.z < 0.0f)
-        {
-          cgamutReachTable[i].y = sampleM;
-          break;
-        }
-      }
-    }
+
+    initialise_cgreach_cusp_table();
 
     XYZ_to_RGB_limit = tmpx;
     RGB_to_XYZ_limit = tmpr;
@@ -2712,114 +2786,12 @@ float3 uncompress_bjorn(float3 xyz)
       gamutCuspTable[i] = gamutCuspTableUnsorted[(minhIndex+i)%gamutCuspTableSize];
     }
 
-    // Cusp table for limiting reach gamut, values at a J of 100.  Covers M values
-    // up to 10000 nits.
-    for( int i = 0; i < gamutCuspTableSize; ++i )
-    {
-     gamutCuspTableReach[i].z = i;
-     for( int M = 0; M < 1300; ++M )
-      {
-        float sampleM = float(M);
-        float3 newLimitRGB = JMh_to_reach_RGB(float3(limitJmax,sampleM,i));
-        if (newLimitRGB.x < 0.0f || newLimitRGB.y < 0.0f || newLimitRGB.z < 0.0f)
-        {
-          gamutCuspTableReach[i].x = sampleM;
-          break;
-        }
-      }
-    }
+    initialise_reach_cusp_table();
 
     midJ = XYZ_to_JMh(refWhite * daniele_c_t * mmScaleFactor, refWhite, outputViewingConditions, L_A_out, Y_b_out, discountIlluminant_mid, HK_mode_mid).x;
 
-
-    // Find upper hull gamma values for the gamut mapper
-    // start by taking a h angle
-    // get the cusp J value for that angle
-    // find a J value halfway to the Jmax
-    // iterate through gamma values until the approxilate max M is negative through the actual boundry
- 
-    for( int i = 0; i < gamutCuspTableSize; ++i )
-    {
-    //  default value. This will get overridden as we loop, but can be a good diagnostic to make sure things are working
-     gamutTopGamma[i] = 0.5f;
-      // get cusp from cusp table at hue position
-     float2 JMcusp = cuspFromTable(float(i));
-     // create test value halfway betwen the cusp and the Jmax
-    // positions between the cusp and Jmax we will check
-     float testPositions[] = {0.01f,0.5f,0.99f};
-    // variables that get set as we iterate through, once all 3 are set to true we break the loop
-     bool gammaFound[3] = {false};
-     // limit value, once we cross this value, we are outside of the top gamut shell 
-     float maxRGBtestVal = 1.0f;
-     // Tg is Test Gamma. the values are shifted two decimal points to the left. Tg 70 = Gamma 0.7
-     for( int Tg = 70; Tg < 170; ++Tg )
-     {
-        // topGamma value created from the Tg variable
-        float topGamma = float(Tg) / 100.0f;
-        // loop to run through each of the positions defined in the testPositions list
-        for ( int testIndex = 0 ; testIndex < 3 ; ++testIndex )
-        {
-                  float3 testJmh = float3(JMcusp.x + ((limitJmax - JMcusp.x) * testPositions[testIndex] ), JMcusp.y , float(i));
-                  float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh,         JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend),   limitJmax,       10000.0f,      0.0f,       topGamma, 1.0f);
-                  float3 newLimitRGB = JMh_to_limit_RGB(float3(approxLimit.x, approxLimit.y, float(i)));
-                  // if any channel has broken through the top gamut hull, break
-                  if (newLimitRGB.x > maxRGBtestVal || newLimitRGB.y > maxRGBtestVal || newLimitRGB.z > maxRGBtestVal)
-                  {
-                      gamutTopGamma[i] = topGamma;
-                      gammaFound[testIndex] = true;
-                  }
-
-        }
-        // once all 3 of the test
-        if (gammaFound[0] && gammaFound[1] && gammaFound[2])
-        {
-            break;
-        }
-      }
-    }
-
-    // Same process, for the bottom hull gamma
-    for( int i = 0; i < gamutCuspTableSize; ++i )
-    {
-    //  default value. This will get overridden as we loop, but can be a good diagnostic to make sure things are working
-     gamutBottomGamma[i] = 0.5f;
-      // get cusp from cusp table at hue position
-     float2 JMcusp = cuspFromTable(float(i));
-     // create test value halfway betwen the cusp and the Jmax
-    // positions between the cusp and Jmax we will check
-     float testPositions[] = {0.01f,0.4f,0.75f};
-    // variables that get set as we iterate through, once all 3 are set to true we break the loop
-     bool gammaFound[3] = {false};
-     // limit value, once we cross this value, we are outside of the top gamut shell 
-     float maxRGBtestVal = 1.0f;
-     // Tg is Test Gamma. the values are shifted two decimal points to the left. Tg 70 = Gamma 0.7
-     for( int Bg = 1140; Bg < 1200; ++Bg )
-     {
-        // topGamma value created from the Tg variable
-        float bottomGamma = float(Bg) / 1000.0f;
-        // loop to run through each of the positions defined in the testPositions list
-        for ( int testIndex = 0 ; testIndex < 3 ; ++testIndex )
-        {
-                  float3 testJmh = float3( ((JMcusp.x) * testPositions[testIndex] ) , JMcusp.y , float(i));
-                  float3 approxLimit  =  findGamutBoundaryIntersection(        testJmh,         JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend),   limitJmax,       10000.0f,      0.0f,       1.0f,bottomGamma);
-                  float3 newLimitRGB = JMh_to_limit_RGB(float3(approxLimit.x, approxLimit.y, float(i)));
-                  // if any channel has broken through the bottom gamut hull, break
-                  if (newLimitRGB.x < 0.0 || newLimitRGB.y < 0.0 || newLimitRGB.z < 0.0)
-                  {
-                    gamutBottomGamma[i] = bottomGamma;
-                      gammaFound[testIndex] = true;
-                  }
-
-        }
-        // once all 3 of the test
-        if (gammaFound[0] && gammaFound[1] && gammaFound[2])
-        {
-            break;
-        }
-      }
-    }
-
-
+    initialise_upper_hull_gamma();
+    initialise_lower_hull_gamma();
 
     // Cusp table for AP1 gamut
     {
@@ -2846,6 +2818,244 @@ float3 uncompress_bjorn(float3 xyz)
     }
   }
 
+  void initialise_reach_cusp_table()
+  {
+    // Cusp table for limiting reach gamut, values at a J of 100.  Covers M values
+    // up to 10000 nits.
+    for( int i = 0; i < gamutCuspTableSize; ++i )
+    {
+      const float search_range = 100.0;
+      float low = 0.0;
+      float high = low + search_range;
+      bool outside = false;
+
+      while (!outside && high < 1400.0)
+      {
+        outside = any_below_zero(JMh_to_reach_RGB(float3(limitJmax, high, i)));
+        if (!outside)
+        {
+          low = high;
+          high = high + search_range;
+        }
+      }
+
+      while ((high - low) > 1e-2)
+      {
+        const float sampleM = (high + low) / 2.0;
+        outside = any_below_zero(JMh_to_reach_RGB(float3(limitJmax, sampleM, i)));
+        if (outside)
+        {
+          high = sampleM;
+        }
+        else
+        {
+          low = sampleM;
+        }
+      }
+      gamutCuspTableReach[i].x = high;
+      gamutCuspTableReach[i].z = i;
+    }
+  }
+
+  void initialise_cgreach_cusp_table()
+  {
+    // Cusp table for limiting reach gamut, values at a J of 100.  Covers M values
+    // up to 10000 nits.
+    for( int i = 0; i < gamutCuspTableSize; ++i )
+    {
+      const float search_range = 100.0;
+      float low = 0.0;
+      float high = low + search_range;
+      bool outside = false;
+
+      while (!outside && high < 1400.0)
+      {
+        outside = any_below_zero(JMh_to_reach_RGB(float3(limitJmax, high, i)));
+        if (!outside)
+        {
+          low = high;
+          high = high + search_range;
+        }
+      }
+
+      while ((high - low) > 1e-2)
+      {
+        const float sampleM = (high + low) / 2.0;
+        outside = any_below_zero(JMh_to_reach_RGB(float3(limitJmax, sampleM, i)));
+        if (outside)
+        {
+          high = sampleM;
+        }
+        else
+        {
+          low = sampleM;
+        }
+      }
+      cgamutReachTable[i].y = high;
+      cgamutReachTable[i].z = i;
+    }
+  }
+
+  bool outside_hull(const float3 newLimitRGB)
+  {
+    // limit value, once we cross this value, we are outside of the top gamut shell
+    const float maxRGBtestVal = 1.0f;
+    if (newLimitRGB.x > maxRGBtestVal || newLimitRGB.y > maxRGBtestVal || newLimitRGB.z > maxRGBtestVal)
+    {
+        return true;
+    }
+    return false;
+  }
+
+  bool evaluate_upper_hull_gamma_fit(const float2 JMcusp, float3 testJmh[], const int test_count, const float topGamma)
+  {
+    for (int testIndex = 0; testIndex < test_count; ++testIndex)
+    {
+      const float3 approxLimit = findGamutBoundaryIntersection(testJmh[testIndex], JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend), limitJmax, 10000.0f, 0.0f, topGamma, 1.0f);
+      const float3 approximate_JMh = float3(approxLimit.x, approxLimit.y, testJmh[testIndex].z);
+      const float3 newLimitRGB = JMh_to_limit_RGB(approximate_JMh);
+
+      if (!outside_hull(newLimitRGB))
+      {
+          return false;
+      }
+    }
+    return true;
+  }
+
+  void initialise_upper_hull_gamma()
+  {
+    // Find upper hull gamma values for the gamut mapper
+    // start by taking a h angle
+    // get the cusp J value for that angle
+    // find a J value halfway to the Jmax
+    // iterate through gamma values until the approxilate max M is negative through the actual boundry
+
+    // positions between the cusp and Jmax we will check
+    // variables that get set as we iterate through, once all are set to true we break the loop
+    const int test_count = 3;
+    const float testPositions[test_count] = {0.01f,0.5f,0.99f};
+    for (int i = 0; i < gamutCuspTableSize; ++i)
+    {
+      const float hue = float(i) * 360.0 / float(gamutCuspTableSize);
+      //  default value. This will get overridden as we loop, but can be a good diagnostic to make sure things are working
+      gamutTopGamma[i] = -1.0f;
+      const float2 JMcusp = cuspFromTable(hue);
+      float3 testJmh[test_count];
+      for (int testIndex = 0; testIndex < test_count; ++testIndex)
+      {
+        // create test values halfway betwen the cusp and the Jmax
+        testJmh[testIndex] = float3(JMcusp.x + ((limitJmax - JMcusp.x) * testPositions[testIndex] ), JMcusp.y , hue);
+      }
+
+      const float search_range = 0.4;
+      float low = 0.4;
+      float high = low + search_range;
+      bool all_inside = false;
+
+      while (!all_inside && high < 5.0)
+      {
+        all_inside = evaluate_upper_hull_gamma_fit(JMcusp, testJmh, test_count, high);
+        if (!all_inside)
+        {
+          low = high;
+          high = high + search_range;
+        }
+      }
+
+      float testGamma = -1.0;
+      while ((high - low) > 1e-5)
+      {
+        testGamma = (high + low) / 2.0;
+        all_inside = evaluate_upper_hull_gamma_fit(JMcusp, testJmh, test_count, testGamma);
+        if (all_inside)
+        {
+          high = testGamma;
+        }
+        else
+        {
+          low = testGamma;
+        }
+      }
+      gamutTopGamma[i] = testGamma;
+    }
+  }
+
+  bool any_below_zero(const float3 newLimitRGB)
+  {
+    if (newLimitRGB.x < 0.0f || newLimitRGB.y < 0.0f || newLimitRGB.z < 0.0f)
+    {
+        return true;
+    }
+    return false;
+  }
+
+  bool evaluate_lower_hull_gamma_fit(const float2 JMcusp, float3 testJmh[], const int test_count, const float bottomGamma)
+  {
+    for (int testIndex = 0; testIndex < test_count; ++testIndex)
+    {
+      const float3 approxLimit = findGamutBoundaryIntersection(testJmh[testIndex], JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend), limitJmax, 10000.0f, 0.0f, 1.0f, bottomGamma);
+      const float3 approximate_JMh = float3(approxLimit.x, approxLimit.y, testJmh[testIndex].z);
+      const float3 newLimitRGB = JMh_to_limit_RGB(approximate_JMh);
+
+      if (!any_below_zero(newLimitRGB))
+      {
+          return false;
+      }
+    }
+    return true;
+  }
+
+  void initialise_lower_hull_gamma()
+  {
+    // Same process, for the bottom hull gamma
+    const int test_count = 3;
+    const float testPositions[test_count] = {0.01f, 0.4f, 0.75f};
+
+    for( int i = 0; i < gamutCuspTableSize; ++i )
+    {
+      const float hue = float(i) * 360.0 / float(gamutCuspTableSize);
+
+      gamutBottomGamma[i] = -1.0f;
+      const float2 JMcusp = cuspFromTable(hue);
+      float3 testJmh[test_count];
+      for (int testIndex = 0; testIndex < test_count; ++testIndex)
+      {
+        testJmh[testIndex] = float3(JMcusp.x * testPositions[testIndex], JMcusp.y , hue);
+      }
+
+      const float search_range = 0.4;
+      float low = 0.8;
+      float high = low + search_range;
+      bool all_inside = false;
+
+      while (!all_inside && high < 5.0)
+      {
+        all_inside = evaluate_lower_hull_gamma_fit(JMcusp, testJmh, test_count, high);
+        if (!all_inside)
+        {
+          low = high;
+          high = high + search_range;
+        }
+      }
+
+      float testGamma = -1.0;
+      while ((high - low) > 1e-5)
+      {
+        testGamma = (high + low) / 2.0;
+        all_inside = evaluate_lower_hull_gamma_fit(JMcusp, testJmh, test_count, testGamma);
+        if (all_inside)
+        {
+          high = testGamma;
+        }
+        else
+        {
+          low = testGamma;
+        }
+      }
+      gamutBottomGamma[i] = testGamma;
+    }
+  }
 
   void process()
   {
@@ -3024,12 +3234,6 @@ float3 uncompress_bjorn(float3 xyz)
 
       // diagnostic = float3(gamutTopGamma[0],LocusLimitMTable[0],limitJmax);
     }
-
-
-
- 
-
-
 
     // extra modes to allow for easier breakout of the order of events.
     // modes starting with 100
