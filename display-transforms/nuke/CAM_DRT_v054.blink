@@ -1484,7 +1484,7 @@ float3 uncompress_bjorn(float3 xyz)
 
   float cReachFromTable(float h)
   {
-    int i = int(h) % gamutCuspTableSize;
+    int i = int(h) % gamutCuspTableSize; // TODO: the int(h) still assumes 360 entries
     if (i < 0)
     {
       i = i + gamutCuspTableSize;
@@ -1923,7 +1923,7 @@ float3 uncompress_bjorn(float3 xyz)
     float3 lo;
     float3 hi;
 
-    int i = int(h) % gamutCuspTableSize;
+    int i = int(h) % gamutCuspTableSize; // TODO: int(h) assumes 360 table entries
     if (i < 0)
     {
       i = i + gamutCuspTableSize;
@@ -2462,9 +2462,8 @@ float3 uncompress_bjorn(float3 xyz)
     }
     RGB_to_XYZ_limit = XYZ_to_RGB_reach.invert();
 
-    initialise_cusp_table(cgamutCuspTable, RGB_to_XYZ_limit);
-
-    initialise_cgreach_cusp_table();
+    initialise_cusp_table(cgamutCuspTable, gamutCuspTableSize, RGB_to_XYZ_limit);
+    initialise_reach_cusp_table(cgamutReachTable, gamutCuspTableSize, limitJmax, XYZ_to_RGB_reach);
 
     XYZ_to_RGB_limit = tmpx;
     RGB_to_XYZ_limit = tmpr;
@@ -2476,24 +2475,23 @@ float3 uncompress_bjorn(float3 xyz)
   }
  
     // Cusp table for limiting gamut
-    initialise_cusp_table(gamutCuspTable, RGB_to_XYZ_limit);
-
-    initialise_reach_cusp_table(XYZ_to_RGB_reach);
+    initialise_cusp_table(gamutCuspTable, gamutCuspTableSize, RGB_to_XYZ_limit);
+    initialise_reach_cusp_table(gamutCuspTableReach, gamutCuspTableSize, limitJmax, XYZ_to_RGB_reach);
 
     midJ = XYZ_to_JMh(refWhite * daniele_c_t * mmScaleFactor, refWhite, outputViewingConditions, L_A_out, Y_b_out, discountIlluminant_mid, HK_mode_mid).x;
 
     initialise_upper_hull_gamma();
     initialise_lower_hull_gamma();
 
-    initialise_cusp_table(gamutCuspTableAP1, AP1_to_XYZ);
+    initialise_cusp_table(gamutCuspTableAP1, gamutCuspTableSize, AP1_to_XYZ);
   }
 
-  void initialise_cusp_table(float3 output_table[], const float3x3& matrix)
+  void initialise_cusp_table(float3 output_table[], const int table_size, const float3x3& matrix)
   {
     int minhIndex = 0;
-    for( int i = 0; i < gamutCuspTableSize; ++i )
+    for( int i = 0; i < table_size; ++i )
     {
-      const float hNorm = float(i) / (gamutCuspTableSize);
+      const float hNorm = float(i) / (table_size);
       const float3 RGB = HSV_to_RGB(float3(hNorm, 1.0f, 1.0f));
       tempTableUnsorted[i] = RGB_to_JMh(RGB, matrix);
       if( tempTableUnsorted[i].z <  tempTableUnsorted[minhIndex].z)
@@ -2501,10 +2499,10 @@ float3 uncompress_bjorn(float3 xyz)
         minhIndex = i;
       }
     }
-    copy_table_rotated(tempTableUnsorted, gamutCuspTableSize, output_table, minhIndex);
+    copy_table_rotated(tempTableUnsorted, table_size, output_table, minhIndex);
   }
 
-  void copy_table_rotated(float3 tableUnsorted[], int tableSize, float3 output_table[], int offsetIndex)
+  void copy_table_rotated(float3 tableUnsorted[], const int tableSize, float3 output_table[], const int offsetIndex)
   {
     for( int i = 0; i < tableSize; ++i )
     {
@@ -2512,11 +2510,9 @@ float3 uncompress_bjorn(float3 xyz)
     }
   }
 
-  void initialise_reach_cusp_table(const float3x3& matrix)
+  void initialise_reach_cusp_table(float3 output_table[], const int table_size, const float limitJ, const float3x3& matrix)
   {
-    // Cusp table for limiting reach gamut, values at a J of 100.  Covers M values
-    // up to 10000 nits.
-    for( int i = 0; i < gamutCuspTableSize; ++i )
+    for( int i = 0; i < table_size; ++i )
     {
       const float search_range = 100.0;
       float low = 0.0;
@@ -2525,7 +2521,7 @@ float3 uncompress_bjorn(float3 xyz)
 
       while (!outside && high < 1400.0)
       {
-        outside = any_below_zero(JMh_to_RGB(float3(limitJmax, high, i), matrix));
+        outside = any_below_zero(JMh_to_RGB(float3(limitJ, high, i), matrix));
         if (!outside)
         {
           low = high;
@@ -2536,7 +2532,7 @@ float3 uncompress_bjorn(float3 xyz)
       while ((high - low) > 1e-2)
       {
         const float sampleM = (high + low) / 2.0;
-        outside = any_below_zero(JMh_to_RGB(float3(limitJmax, sampleM, i), matrix));
+        outside = any_below_zero(JMh_to_RGB(float3(limitJ, sampleM, i), matrix));
         if (outside)
         {
           high = sampleM;
@@ -2546,49 +2542,9 @@ float3 uncompress_bjorn(float3 xyz)
           low = sampleM;
         }
       }
-      gamutCuspTableReach[i].x = limitJmax;
-      gamutCuspTableReach[i].y = high;
-      gamutCuspTableReach[i].z = i;
-    }
-  }
-
-  void initialise_cgreach_cusp_table()
-  {
-    // Cusp table for limiting reach gamut, values at a J of 100.  Covers M values
-    // up to 10000 nits.
-    for( int i = 0; i < gamutCuspTableSize; ++i )
-    {
-      const float search_range = 100.0;
-      float low = 0.0;
-      float high = low + search_range;
-      bool outside = false;
-
-      while (!outside && high < 1400.0)
-      {
-        outside = any_below_zero(JMh_to_RGB(float3(limitJmax, high, i), XYZ_to_RGB_reach));
-        if (!outside)
-        {
-          low = high;
-          high = high + search_range;
-        }
-      }
-
-      while ((high - low) > 1e-2)
-      {
-        const float sampleM = (high + low) / 2.0;
-        outside = any_below_zero(JMh_to_RGB(float3(limitJmax, sampleM, i), XYZ_to_RGB_reach));
-        if (outside)
-        {
-          high = sampleM;
-        }
-        else
-        {
-          low = sampleM;
-        }
-      }
-      cgamutReachTable[i].x = limitJmax;
-      cgamutReachTable[i].y = high;
-      cgamutReachTable[i].z = i;
+      output_table[i].x = limitJ;
+      output_table[i].y = high;
+      output_table[i].z = i;
     }
   }
 
