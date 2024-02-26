@@ -767,18 +767,11 @@ local:
     if (JM.x < focusJ)
     {
       b = 1.0f - JM.y / slope_gain;
-    }
-    else
-    {
-      b = -(1.0f + JM.y / slope_gain + maxJ * JM.y / (focusJ * slope_gain));
-    }
-
-    if (JM.x < focusJ)
-    {
       c = -JM.x;
     }
     else
     {
+      b = -(1.0f + JM.y / slope_gain + maxJ * JM.y / (focusJ * slope_gain));
       c = maxJ * JM.y / slope_gain + JM.x;
     }
 
@@ -794,44 +787,6 @@ local:
     }
 
     return intersectJ;
-  }
-
-  // check if the 3D point 'v' is inside a cube with the dimensions cubeSize x cubeSize x cubeSize
-  // the 'smoothing' parameter rounds off the edges and corners of the cube with the exception of the 0,0,0 and cubeSize x cubeSize x cubeSize corners
-  // a smoothing value of 0.0 applies no smoothing and 1.0 the maximum amount (smoothing values > 1.0 result in undefined behavior )
-  int isInsideCube(float3 v, float cubeSize, float smoothing)
-  {
-    float3 normv = v / cubeSize;
-
-    float minv = min(normv.x, min(normv.y, normv.z));
-    float maxv = max(normv.x, max(normv.y, normv.z));
-
-    if (smoothing <= 0.0f)
-    {
-      // when not smoothing we can use a much simpler test
-      if (minv < 0.0f || maxv > 1.0f)
-      {
-        return 0;
-      }
-
-      return 1;
-    }
-
-    float3 clamped = normv;
-
-    float radius = smoothing / 2.0f;
-    radius       = clamp(radius * maxv * (1.0f - minv), 0.0f, radius);
-
-    clamped.x = clamp(normv.x, radius, 1.0f - radius);
-    clamped.y = clamp(normv.y, radius, 1.0f - radius);
-    clamped.z = clamp(normv.z, radius, 1.0f - radius);
-
-    if (length(normv - clamped) > radius)
-    {
-      return 0;
-    }
-
-    return 1;
   }
 
   float3 viewingConditionsToSurround(int viewingConditions)
