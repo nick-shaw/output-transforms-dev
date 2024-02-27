@@ -1086,7 +1086,7 @@ local:
     float k   = 1 / (5 * L_A + 1);
     float k4  = pow(k, 4);
     float F_L = 0.2f * k4 * (5.0f * L_A) + 0.1f * pow((1.0f - k4), 2.0f) * pow(5.0f * L_A, 1.0f / 3.0f);
-    float n   = sdiv(Y_b, XYZ_w.y);
+    float n   = Y_b / XYZ_w.y;
     float z   = 1.48 + sqrt(n);
 
     float3 D_RGB  = D * XYZ_w.y / RGB_w + 1 - D;
@@ -1199,7 +1199,7 @@ local:
     float k   = 1 / (5 * L_A + 1);
     float k4  = pow(k, 4);
     float F_L = 0.2f * k4 * (5.0f * L_A) + 0.1f * pow((1.0f - k4), 2.0f) * pow(5.0f * L_A, 1.0f / 3.0f);
-    float n   = sdiv(Y_b, XYZ_w.y);
+    float n   = Y_b / XYZ_w.y;
     float z   = 1.48 + sqrt(n);
 
     float3 D_RGB  = D * XYZ_w.y / RGB_w + 1 - D;
