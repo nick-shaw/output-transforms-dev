@@ -1085,7 +1085,7 @@ local:
     // # Viewing conditions dependent parameters
     float k   = 1 / (5 * L_A + 1);
     float k4  = pow(k, 4);
-    float F_L = 0.2f * k4 * (5.0f * L_A) + 0.1f * pow((1.0f - k4), 2.0f) * spow(5.0f * L_A, 1.0f / 3.0f);
+    float F_L = 0.2f * k4 * (5.0f * L_A) + 0.1f * pow((1.0f - k4), 2.0f) * pow(5.0f * L_A, 1.0f / 3.0f);
     float n   = sdiv(Y_b, XYZ_w.y);
     float z   = 1.48 + sqrt(n);
 
@@ -1198,7 +1198,7 @@ local:
     // # Viewing conditions dependent parameters
     float k   = 1 / (5 * L_A + 1);
     float k4  = pow(k, 4);
-    float F_L = 0.2f * k4 * (5.0f * L_A) + 0.1f * pow((1.0f - k4), 2.0f) * spow(5.0f * L_A, 1.0f / 3.0f);
+    float F_L = 0.2f * k4 * (5.0f * L_A) + 0.1f * pow((1.0f - k4), 2.0f) * pow(5.0f * L_A, 1.0f / 3.0f);
     float n   = sdiv(Y_b, XYZ_w.y);
     float z   = 1.48 + sqrt(n);
 
@@ -1643,27 +1643,54 @@ local:
   }
 
 
+  float Y_to_Hellwig_J(float Y, float3 surround)
+  {
+    // Viewing conditions dependent parameters (could be pre-calculated)
+    float k     = 1.0f / (5.0f * L_A + 1.0f);
+    float k4    = k*k*k*k;
+    float F_L   = 0.2f * k4 * (5.0f * L_A) + 0.1f * pow((1.0f - k4), 2.0f) * pow(5.0f * L_A, 1.0f / 3.0f) ;
+    float n     = Y_b / XYZ_w_scaler;
+    float z     = 1.48f + sqrt(n);
+    float F_L_W = pow(F_L, 0.42f);
+    float A_w   = (400.0f * F_L_W) / (27.13f + F_L_W);
+
+    float F_L_Y = pow(F_L * fabs(Y) / 100.0f, 0.42f);
+
+    return sign(Y) * 100.0f * pow(((400.0f * F_L_Y) / (27.13f + F_L_Y)) / A_w, surround.y * z);
+  }
+
+  float Hellwig_J_to_Y(float J, float3 surround)
+  {
+    // Viewing conditions dependent parameters (could be pre-calculated)
+    float k     = 1.0f / (5.0f * L_A + 1.0f);
+    float k4    = k*k*k*k;
+    float F_L   = 0.2f * k4 * (5.0f * L_A) + 0.1f * pow((1.0f - k4), 2.0f) * pow(5.0f * L_A, 1.0f / 3.0f) ;
+    float n     = Y_b / XYZ_w_scaler;
+    float z     = 1.48f + sqrt(n);
+    float F_L_W = pow(F_L, 0.42f);
+    float A_w   = (400.0f * F_L_W) / (27.13f + F_L_W);
+
+    float A = A_w * pow(fabs(J) / 100.0f, 1.0f / (surround.y * z));
+
+    return sign(J) * 100.0f / F_L * pow((27.13f * A) / (400.0f - A), 1.0f / 0.42f);
+  }
+
+
   float3 forwardTonescale(float3 inputJMh)
   {
     float3 outputJMh;
-    float3 monoJMh   = float3(inputJMh.x, 0.0f, 0.0f);
-    float3 linearJMh = JMh_to_luminance_RGB(monoJMh);
-    float  linear    = linearJMh.x / referenceLuminance;
-
-    float2 luminanceTS = linear;
+    float3 surround = viewingConditionsToSurround(viewingConditions);
+    float linear = Hellwig_J_to_Y(inputJMh.x, surround) / referenceLuminance;
+    float luminanceTS = linear;
 
     // switch for applying the different tonescale compression functions
-    if (toneScaleMode == 0)
+    if (toneScaleMode == 1)
     {
-      luminanceTS = linear;
-    }
-    else if (toneScaleMode == 1)
-    {
-      luminanceTS = daniele_evo_fwd(linear) * mmScaleFactor;
+      luminanceTS = daniele_evo_fwd(luminanceTS) * mmScaleFactor;
     }
 
-    float3 tonemappedmonoJMh = luminance_RGB_to_JMh(float3(luminanceTS.x, luminanceTS.x, luminanceTS.x));
-    float3 tonemappedJMh     = float3(tonemappedmonoJMh.x, inputJMh.y, inputJMh.z);
+    float tonemappedJ = Y_to_Hellwig_J(luminanceTS, surround);
+    float3 tonemappedJMh = float3(tonemappedJ, inputJMh.y, inputJMh.z);
 
     if (applyTonecurve)
     {
@@ -1691,6 +1718,7 @@ local:
   float3 inverseTonescale(float3 JMh)
   {
     float3 tonemappedJMh = JMh;
+    float3 surround = viewingConditionsToSurround(viewingConditions);
 
     if (!applyTonecurve && !applyChromaCompression)
     {
@@ -1700,9 +1728,7 @@ local:
 
     float3 untonemappedColourJMh = tonemappedJMh;
 
-    float3 monoTonemappedJMh = float3(tonemappedJMh.x, 0.0f, 0.0f);
-    float3 monoTonemappedRGB = JMh_to_luminance_RGB(monoTonemappedJMh);
-    float  luminance         = monoTonemappedRGB.x;
+    float  luminance = Hellwig_J_to_Y(tonemappedJMh.x, surround);
 
     // Dummy value to init the var
     float linear = 0.0f;
@@ -1719,8 +1745,8 @@ local:
 
     if (applyTonecurve)
     {
-      float3 untonemappedMonoJMh = luminance_RGB_to_JMh(float3(linear, linear, linear));
-      untonemappedColourJMh      = float3(untonemappedMonoJMh.x, tonemappedJMh.y, tonemappedJMh.z);
+      float untonemappedJ = Y_to_Hellwig_J(linear, surround);
+      untonemappedColourJMh = float3(untonemappedJ, tonemappedJMh.y, tonemappedJMh.z);
     }
 
     if (applyChromaCompression)
