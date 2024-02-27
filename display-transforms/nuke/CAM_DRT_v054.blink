@@ -1879,9 +1879,11 @@ local:
   {
     const float h = Jmh.z;
 
-    const int    i  = hue_position_in_uniform_table(h, gamutCuspTableSize);
-    const float3 lo = gamutCuspTableReach[i];
-    const float3 hi = gamutCuspTableReach[(i + 1) % gamutCuspTableSize];
+    const int i_lo = hue_position_in_uniform_table(h, gamutCuspTableSize);
+    const int i_hi = next_position_in_table(i_lo, gamutCuspTableSize);
+
+    const float3 lo = gamutCuspTableReach[i_lo];
+    const float3 hi = gamutCuspTableReach[i_hi];
 
     const float t = (h - lo.z) / (hi.z - lo.z);
 
