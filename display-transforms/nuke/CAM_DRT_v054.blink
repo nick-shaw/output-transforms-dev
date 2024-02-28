@@ -113,7 +113,6 @@ param:
   // 7: Chroma Compression Space
   int primariesReach;
 
-
   // Toggle Gamut Compression
   bool applyGamutCompression;
 
@@ -158,8 +157,8 @@ param:
   // How much the edges of the target RGB cube are smoothed when finding the gamut boundary
   // in order to reduce visible contours at the gamut cusps
   float smoothCusps;
-  float smoothJ;   // Scaling factor for cusp J
-  float smoothM;   // Scaling factor for cusp M
+  float smoothJ; // Scaling factor for cusp J
+  float smoothM; // Scaling factor for cusp M
 
   //
   // Output Parameters
@@ -238,7 +237,6 @@ param:
   float L_A_out;
   float Y_b_out;
 
-
 local:
 
   // constants
@@ -297,9 +295,6 @@ local:
   float3x3 RGB_to_XYZ_limit;
   float3x3 RGB_to_XYZ_reach;
   float3x3 RGB_to_XYZ_output;
-
-  float3x3 AP1_to_XYZ;
-  float3x3 XYZ_to_AP1;
 
   // white points
   float3 inWhite;
@@ -415,7 +410,6 @@ local:
       return pow(base, exponent);
     }
   }
-
 
   // clamp the components of a 3D vector between a min & max value
   float3 clamp3(float3 v, float min, float max)
@@ -1241,7 +1235,6 @@ local:
     return XYZ;
   }
 
-
   // retrieve the JM coordinates of the limiting gamut cusp at the hue slice 'h'
   // cusps are very expensive to compute
   // and the DRT is only using them for lightness mapping
@@ -1369,7 +1362,6 @@ local:
 
     return float2(cuspJ, cuspM);
   }
-
 
   float2 cuspFromTableLocus(float h)
   {
@@ -1643,7 +1635,6 @@ local:
     }
   }
 
-
   float3 JMh_to_input_RGB(float3 JMh)
   {
     float3 luminanceXYZ = JMh_to_XYZ(JMh, inWhite, viewingConditions, L_A, Y_b, discountIlluminant_in, HK_mode_in);
@@ -1652,7 +1643,6 @@ local:
 
     return inputRGB;
   }
-
 
   float3 forwardTonescale(float3 inputJMh)
   {
@@ -1697,7 +1687,6 @@ local:
 
     return outputJMh;
   }
-
 
   float3 inverseTonescale(float3 JMh)
   {
@@ -1749,9 +1738,9 @@ local:
 
     const int i_lo = hue_position_in_uniform_table(h, gamutCuspTableSize);
     const int i_hi = next_position_in_table(i_lo, gamutCuspTableSize);
-    
+
     const float base_hue = base_hue_for_position(i_lo, gamutCuspTableSize);
-    const float t          = h - base_hue;
+    const float t        = h - base_hue;
 
     return lerp(gamutTopGamma[i_lo], gamutTopGamma[i_hi], t);
   }
@@ -1763,7 +1752,7 @@ local:
 
     const int i_lo = hue_position_in_uniform_table(h, gamutCuspTableSize);
     const int i_hi = next_position_in_table(i_lo, gamutCuspTableSize);
-    
+
     const float base_hue = base_hue_for_position(i_lo, gamutCuspTableSize);
     const float t        = h - base_hue;
 
@@ -1863,7 +1852,6 @@ local:
     return float2(yi, xi);
   }
 
-
   float3 getLocusBoundry(float3 Jmh)
   {
     float h = Jmh.z;
@@ -1909,7 +1897,6 @@ local:
     float cuspTarget = reachMaxM * pow((Jmh.x / limitJmax), model_gamma);
     return float3(Jmh.x, cuspTarget, Jmh.z);
   }
-
 
   float4 getCompressionFuncParams(float3 Jmh)
   {
@@ -2303,7 +2290,6 @@ local:
       192.5116577, 195.5551453, 198.5196381, 201.3429413, 203.941452,  206.8439484, 209.5599213, 212.4866943, 215.0750885, 217.929306,
       220.6668701, 223.364151,  226.2115479, 228.9524536, 231.5583954, 234.405304,  237.0275879, 239.5091705, 242.0047455, 242.0177155};
 
-
     // populate the input primaries matrix
     RGB_to_XYZ_input = generate_RGB_to_XYZ_matrix(primariesIn);
     XYZ_to_RGB_input = RGB_to_XYZ_input.invert();
@@ -2327,6 +2313,7 @@ local:
       limitWhiteForMatrix = float2(0.333333f, 0.333333f);
     }
 
+    // TODO: could we share these primaries with matrix generation code?
     if (primariesLimit == 0)
     {
       limitRedForMatrix   = float2(0.7347f, 0.2653);
@@ -2372,9 +2359,6 @@ local:
 
     RGB_to_XYZ_output = generate_RGB_to_XYZ_matrix(primariesOut);
     XYZ_to_RGB_output = RGB_to_XYZ_output.invert();
-
-    AP1_to_XYZ = generate_RGB_to_XYZ_matrix(1); // AP1 == 1
-    XYZ_to_AP1 = AP1_to_XYZ.invert();
 
     float3 white(1.0f, 1.0f, 1.0f);
     inWhite    = vector_dot(RGB_to_XYZ_input, white);
@@ -2465,6 +2449,7 @@ local:
     initialise_upper_hull_gamma();
     initialise_lower_hull_gamma();
 
+    const float3x3 AP1_to_XYZ = generate_RGB_to_XYZ_matrix(1); // AP1 == 1
     initialise_cusp_table(gamutCuspTableAP1, gamutCuspTableSize, AP1_to_XYZ);
   }
 
@@ -2499,9 +2484,9 @@ local:
     {
       const float hue = base_hue_for_position(i, table_size);
 
-      float       low          = 0.0;
-      float       high         = low + search_range;
-      bool        outside      = false;
+      float low     = 0.0;
+      float high    = low + search_range;
+      bool  outside = false;
 
       while (!outside && high < 1400.0)
       {
@@ -2545,10 +2530,12 @@ local:
 
   bool evaluate_upper_hull_gamma_fit(const float2 JMcusp, float3 testJmh[], const int test_count, const float topGamma)
   {
+    const float focusJ = lerp(JMcusp.x, midJ, min(1.0, cuspMidBlend - (JMcusp.x / limitJmax)));
     for (int testIndex = 0; testIndex < test_count; ++testIndex)
     {
+      const float  slope_gain  = limitJmax * focusDist * getFocusGain(testJmh[testIndex].x, JMcusp.x);
       const float3 approxLimit =
-        findGamutBoundaryIntersection(testJmh[testIndex], JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend), limitJmax, 10000.0f, 0.0f, topGamma, 1.0f);
+        findGamutBoundaryIntersection(testJmh[testIndex], JMcusp, focusJ, limitJmax, slope_gain, smoothCusps, topGamma, lowerHullGamma);
       const float3 approximate_JMh = float3(approxLimit.x, approxLimit.y, testJmh[testIndex].z);
       const float3 newLimitRGB     = JMh_to_RGB(approximate_JMh, XYZ_to_RGB_limit);
 
