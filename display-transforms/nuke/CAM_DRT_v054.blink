@@ -2543,10 +2543,12 @@ local:
 
   bool evaluate_upper_hull_gamma_fit(const float2 JMcusp, float3 testJmh[], const int test_count, const float topGamma)
   {
+    const float focusJ = lerp(JMcusp.x, midJ, min(1.0, cuspMidBlend - (JMcusp.x / limitJmax)));
     for (int testIndex = 0; testIndex < test_count; ++testIndex)
     {
+      const float slope_gain = limitJmax * focusDist * getFocusGain(testJmh[testIndex].x, JMcusp.x);
       const float3 approxLimit =
-        findGamutBoundaryIntersection(testJmh[testIndex], JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend), limitJmax, 10000.0f, 0.0f, topGamma, 1.0f);
+        findGamutBoundaryIntersection(testJmh[testIndex], JMcusp, focusJ, limitJmax, slope_gain, smoothCusps, topGamma, lowerHullGamma);
       const float3 approximate_JMh = float3(approxLimit.x, approxLimit.y, testJmh[testIndex].z);
       const float3 newLimitRGB     = JMh_to_RGB(approximate_JMh, XYZ_to_RGB_limit);
 
