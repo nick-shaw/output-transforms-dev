@@ -435,11 +435,6 @@ local:
     return a / b;
   }
 
-  float mod(float a, float N)
-  {
-    return a - N * floor(a / N);
-  }
-
   float degree_of_adaptation(float F, float L_A)
   {
     float D = F * (1 - (1 / 3.6) * exp((-L_A - 42) / 92));
@@ -954,7 +949,7 @@ local:
     if (fitWhite)
     {
       // Scale to fit maximum creative white channel value
-      float3 creativeWhiteXYZ = vector_dot(RGB_to_XYZ_limit, float3(1.0f, 1.0f, 1.0f));
+      float3 creativeWhiteXYZ = vector_dot(RGB_to_XYZ_limit, float3(1.0f, 1.0f, 1.0f)); // TODO: these scaling parameters could be precalculated
       float3 creativeWhiteRGB = vector_dot(XYZ_to_RGB_output, creativeWhiteXYZ);
       luminanceRGB *= 1.0f / max(creativeWhiteRGB.x, max(creativeWhiteRGB.y, creativeWhiteRGB.z));
     }
@@ -1059,8 +1054,8 @@ local:
     // # Viewing conditions dependent parameters
     float k   = 1 / (5 * L_A + 1);
     float k4  = pow(k, 4);
-    float F_L = 0.2f * k4 * (5.0f * L_A) + 0.1f * pow((1.0f - k4), 2.0f) * spow(5.0f * L_A, 1.0f / 3.0f);
-    float n   = sdiv(Y_b, XYZ_w.y);
+    float F_L = 0.2f * k4 * (5.0f * L_A) + 0.1f * pow((1.0f - k4), 2.0f) * pow(5.0f * L_A, 1.0f / 3.0f);
+    float n   = Y_b / XYZ_w.y;
     float z   = 1.48 + sqrt(n);
 
     float3 D_RGB  = D * XYZ_w.y / RGB_w + 1 - D;
@@ -1105,9 +1100,8 @@ local:
     float b   = (R_a + G_a - 2.0f * B_a) / 9.0f;
 
     // # Computing the *hue* angle :math:`h`.
-    // Unclear why this isn't matching the python version.
     float hr = atan2(b, a);
-    float h  = mod(degrees(hr), 360.0f);
+    float h  = wrap_to_360(degrees(hr));
 
     // # Step 6
     // # Computing achromatic responses for the stimulus.
@@ -1119,36 +1113,32 @@ local:
 
     // # Step 7
     // # Computing the correlate of *Lightness* :math:`J`.
-    float J = 100.0f * spow(sdiv(A, A_w), surround.y * z);
+    float J = 100.0f * pow(A / A_w, surround.y * z);
 
     // # Step 8
     // # Computing the correlate of *brightness* :math:`Q`.
-    float Q = (2.0f / float(surround.y)) * (J / 100.0f) * A_w;
+    // float Q = (2.0f / float(surround.y)) * (J / 100.0f) * A_w;
 
     // # Step 9
     // # Computing the correlate of *colourfulness* :math:`M`.
     float M = 43.0f * surround.z * sqrt(a * a + b * b);
 
     // # Computing the correlate of *chroma* :math:`C`.
-    float C = 35.0f * sdiv(M, A_w);
+    float C = 35.0f * M / A_w;
 
     // # Computing the correlate of *saturation* :math:`s`.
-    float s = 100.0f * sdiv(M, Q);
-
-    // # *Helmholtz–Kohlrausch* Effect Extension.
-    float J_HK = J + hue_angle_dependency_Hellwig2022(hr) * spow(C, 0.587f);
-    float Q_HK = (2.0f / surround.y) * (J_HK / 100.0f) * A_w;
-
+    // float s = 100.0f * sdiv(M, Q);
+  
     if (HK_mode)
     {
-      return {J_HK, M, h};
+      // # *Helmholtz–Kohlrausch* Effect Extension.
+      J = J + hue_angle_dependency_Hellwig2022(hr) * spow(C, 0.587f);
+      // float Q_HK = (2.0f / surround.y) * (J / 100.0f) * A_w;
     }
-    else
-    {
-      if (J == 0.0f)
-        M = 0.0f;
-      return {J, M, h};
-    }
+    
+    if (J == 0.0f)
+      M = 0.0f;
+    return {J, M, h};
   }
 
   float3 Hellwig2022_JMh_to_XYZ(float3 JMh, float3 XYZ_w, float L_A, float Y_b, float3 surround, bool discountIlluminant, bool HK_mode)
@@ -1172,8 +1162,8 @@ local:
     // # Viewing conditions dependent parameters
     float k   = 1 / (5 * L_A + 1);
     float k4  = pow(k, 4);
-    float F_L = 0.2f * k4 * (5.0f * L_A) + 0.1f * pow((1.0f - k4), 2.0f) * spow(5.0f * L_A, 1.0f / 3.0f);
-    float n   = sdiv(Y_b, XYZ_w.y);
+    float F_L = 0.2f * k4 * (5.0f * L_A) + 0.1f * pow((1.0f - k4), 2.0f) * pow(5.0f * L_A, 1.0f / 3.0f);
+    float n   = Y_b / XYZ_w.y;
     float z   = 1.48 + sqrt(n);
 
     float3 D_RGB  = D * XYZ_w.y / RGB_w + 1 - D;
@@ -2393,44 +2383,33 @@ local:
     limitJmax = RGB_to_JMh(float3(1.0f), RGB_to_XYZ_limit).x;
 
     // Cusp table for chroma compression gamut
+    float3x3 RGB_to_XYZ_cgReach;
+    if (ccReach == 0) // Chroma Compression Space (primaries defined in kernel params)
     {
-      float3x3 tmpx = XYZ_to_RGB_limit; // TODO: this temp switch should be fixed.
-      float3x3 tmpr = RGB_to_XYZ_limit;
-      float3x3 tmpR = XYZ_to_RGB_reach;
+      RGB_to_XYZ_cgReach = RGBPrimsToXYZMatrix(crxy, cgxy, cbxy, cwxy, 1.0f, 0);
 
-      if (ccReach == 0)                                                          // Chroma Compression Space (primaries defined in kernel params)
-      {
-        XYZ_to_RGB_limit = RGBPrimsToXYZMatrix(crxy, cgxy, cbxy, cwxy, 1.0f, 1); // TODO: fix me
-        XYZ_to_RGB_reach = XYZ_to_RGB_limit;
-      }
-      else if (ccReach == 1)
-      {
-        XYZ_to_RGB_reach =
-          RGBPrimsToXYZMatrix(float2(0.7347f, 0.2653), float2(0.0f, 1.0f), float2(0.0001, -0.077), float2(0.32168f, 0.33767f), 1.0f, 1);
-      }
-      else if (ccReach == 2)
-      {
-        XYZ_to_RGB_reach =
-          RGBPrimsToXYZMatrix(float2(0.713f, 0.293f), float2(0.165f, 0.830f), float2(0.128f, 0.044f), float2(0.32168f, 0.33767f), 1.0f, 1);
-      }
-      else
-      {
-        XYZ_to_RGB_reach =
-          RGBPrimsToXYZMatrix(float2(0.708f, 0.292f), float2(0.170f, 0.797f), float2(0.131f, 0.046f), float2(0.3127f, 0.3290f), 1.0f, 1);
-      }
-      RGB_to_XYZ_limit = XYZ_to_RGB_reach.invert();
-
-      initialise_cusp_table(cgamutCuspTable, gamutCuspTableSize, RGB_to_XYZ_limit);
-      initialise_reach_cusp_table(cgamutReachTable, gamutCuspTableSize, limitJmax, XYZ_to_RGB_reach);
-
-      XYZ_to_RGB_limit = tmpx;
-      RGB_to_XYZ_limit = tmpr;
-
-      // With gamut mapper reach mode 7, use the chroma compression reach space with the
-      // gamut mapper.
-      if (primariesReach != 7)
-        XYZ_to_RGB_reach = tmpR;
     }
+    else if (ccReach == 1)
+    {
+      RGB_to_XYZ_cgReach = generate_RGB_to_XYZ_matrix(0);
+    }
+    else if (ccReach == 2)
+    {
+      RGB_to_XYZ_cgReach = generate_RGB_to_XYZ_matrix(1);
+    }
+    else
+    {
+      RGB_to_XYZ_cgReach = generate_RGB_to_XYZ_matrix(3);
+    }
+    const float3x3 XYZ_to_RGB_cgReach = RGB_to_XYZ_cgReach.invert();
+
+    initialise_cusp_table(cgamutCuspTable, gamutCuspTableSize, RGB_to_XYZ_cgReach);
+    initialise_reach_cusp_table(cgamutReachTable, gamutCuspTableSize, limitJmax, XYZ_to_RGB_cgReach);
+
+    // With gamut mapper reach mode 7, use the chroma compression reach space with the
+    // gamut mapper.
+    if (primariesReach == 7)
+      XYZ_to_RGB_reach = XYZ_to_RGB_cgReach;
 
     // Cusp table for limiting gamut
     initialise_cusp_table(gamutCuspTable, gamutCuspTableSize, RGB_to_XYZ_limit);
@@ -2610,10 +2589,13 @@ local:
 
   bool evaluate_lower_hull_gamma_fit(const float2 JMcusp, float3 testJmh[], const int test_count, const float bottomGamma)
   {
+    const float focusJ = lerp(JMcusp.x, midJ, cuspMidBlend);
     for (int testIndex = 0; testIndex < test_count; ++testIndex)
     {
-      const float3 approxLimit     = findGamutBoundaryIntersection(testJmh[testIndex], JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend), limitJmax,
-                                                                   10000.0f, 0.0f, 1.0f, bottomGamma);
+      const float slope_gain = limitJmax * focusDist * getFocusGain(testJmh[testIndex].x, JMcusp.x);
+
+      const float3 approxLimit     = findGamutBoundaryIntersection(testJmh[testIndex], JMcusp, focusJ, limitJmax,
+                                                                   slope_gain, smoothCusps, upperHullGamma, bottomGamma);
       const float3 approximate_JMh = float3(approxLimit.x, approxLimit.y, testJmh[testIndex].z);
       const float3 newLimitRGB     = JMh_to_RGB(approximate_JMh, XYZ_to_RGB_limit);
 
