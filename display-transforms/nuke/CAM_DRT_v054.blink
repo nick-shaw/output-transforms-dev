@@ -238,11 +238,6 @@ param:
   float Y_b_out;
 
 local:
-
-  // constants
-  float HALF_MINIMUM;
-  float HALF_MAXIMUM;
-
   // Hellwig 2022 constants
   float3x3 CAT_CAT16;
   float3x3 CAT_CAT16_INVERSE;
@@ -438,6 +433,11 @@ local:
       return 0.0f;
     }
     return a / b;
+  }
+
+  float mod(float a, float N)
+  {
+    return a - N * floor(a / N);
   }
 
   float degree_of_adaptation(float F, float L_A)
@@ -1107,7 +1107,7 @@ local:
     // # Computing the *hue* angle :math:`h`.
     // Unclear why this isn't matching the python version.
     float hr = atan2(b, a);
-    float h  = fmod(degrees(hr), 360.0f);
+    float h  = mod(degrees(hr), 360.0f);
 
     // # Step 6
     // # Computing achromatic responses for the stimulus.
@@ -1617,9 +1617,6 @@ local:
 
   float3 input_RGB_to_JMh(float3 inputRGB)
   {
-    // clamp input to +/- HALF_MAXIMUM range (to remove inf values, etc.)
-    inputRGB = clamp3(inputRGB, -HALF_MAXIMUM, HALF_MAXIMUM);
-
     // convert to linear XYZ luminance values
     float3 luminanceRGB = encodingToLuminance3(encodingIn, inputRGB);
     float3 luminanceXYZ = vector_dot(RGB_to_XYZ_input, luminanceRGB);
@@ -2195,9 +2192,6 @@ local:
 
   void init()
   {
-    HALF_MINIMUM = 0.0000000596046448f;
-    HALF_MAXIMUM = 65504.0f;
-
     st2084_m_1   = 2610.0f / 4096.0f * (1.0f / 4.0f);
     st2084_m_2   = 2523.0f / 4096.0f * 128.0f;
     st2084_c_1   = 3424.0f / 4096.0f;
@@ -2865,8 +2859,7 @@ local:
     else if (diagnosticMode == 100)
     {
       // display encoding to display linear
-      float3 inputRGB = clamp3(srcRGB, -HALF_MAXIMUM, HALF_MAXIMUM);
-      diagnostic      = encodingToLuminance3(encodingIn, inputRGB);
+      diagnostic      = encodingToLuminance3(encodingIn, srcRGB);
     }
     else if (diagnosticMode == 101)
     {
