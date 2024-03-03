@@ -17,6 +17,9 @@ param:
   // 5: ST2084
   int encodingIn;
 
+  // AP1 clamp
+  bool AP1Clamp;
+
   // Primaries of the Input Image
   // 0: AP0-ACES
   // 1: AP1-ACES
@@ -133,6 +136,7 @@ param:
   float focusGainBlend;
   bool  disableFocusGain;
   bool  disableFocusDistScaling;
+  float focusDistScaling;
 
   // Gamut Compression Fuction Parameters
   // Threshold / min Limit / max Limit / Power
@@ -290,6 +294,9 @@ local:
   float3x3 RGB_to_XYZ_limit;
   float3x3 RGB_to_XYZ_reach;
   float3x3 RGB_to_XYZ_output;
+
+  float3x3 AP1_to_XYZ;
+  float3x3 XYZ_to_AP1;
 
   // white points
   float3 inWhite;
@@ -1610,7 +1617,17 @@ local:
     // convert to linear XYZ luminance values
     float3 luminanceRGB = encodingToLuminance3(encodingIn, inputRGB);
     float3 luminanceXYZ = vector_dot(RGB_to_XYZ_input, luminanceRGB);
-    float3 JMh          = XYZ_to_JMh(luminanceXYZ, inWhite, viewingConditions, L_A, Y_b, discountIlluminant_in, HK_mode_in);
+
+    if (AP1Clamp)
+    {
+      luminanceRGB   = vector_dot(XYZ_to_AP1, luminanceXYZ);
+      luminanceRGB.x = max(0.0f, luminanceRGB.x);
+      luminanceRGB.y = max(0.0f, luminanceRGB.y);
+      luminanceRGB.z = max(0.0f, luminanceRGB.z);
+      luminanceXYZ   = vector_dot(AP1_to_XYZ, luminanceRGB);
+    }
+
+    float3 JMh = XYZ_to_JMh(luminanceXYZ, inWhite, viewingConditions, L_A, Y_b, discountIlluminant_in, HK_mode_in);
 
     if (diagnosticMode == 6 || diagnosticMode == 100)
     {
@@ -2237,7 +2254,7 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     // Chroma compression scaling for HDR/SDR appearance match
     float log_peak = log10(daniele_n / daniele_n_r);
     compr          = chroma_compress + (chroma_compress * chroma_compress_fact) * log_peak;
-    sat            = max(0.15f, chroma_expand - (chroma_expand * chroma_expand_fact) * log_peak);
+    sat            = max(0.2f, chroma_expand - (chroma_expand * chroma_expand_fact) * log_peak);
     sat_thr        = chroma_expand_thr / daniele_n;
 
     // Gamut mapper focus distance scaling with peak luminance for
@@ -2245,7 +2262,7 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     // steep with higher peak luminance.
     // https://www.desmos.com/calculator/bnfhjcq5vf
     if (!disableFocusDistScaling)
-      focusDist = min(10.0f, focusDistance + focusDistance * 1.65f * log_peak);
+      focusDist = focusDistance + focusDistance * focusDistScaling * log_peak;
     else
       focusDist = focusDistance;
 
@@ -2302,6 +2319,10 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     // populate the input primaries matrix
     RGB_to_XYZ_input = generate_RGB_to_XYZ_matrix(primariesIn);
     XYZ_to_RGB_input = RGB_to_XYZ_input.invert();
+
+    // AP1 matrix
+    AP1_to_XYZ = generate_RGB_to_XYZ_matrix(1); // AP1 == 1
+    XYZ_to_AP1 = AP1_to_XYZ.invert();
 
     // populate the limiting primaries matrix
     // RGBPrimsToXYZMatrix
@@ -2447,7 +2468,6 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     initialise_upper_hull_gamma();
     initialise_lower_hull_gamma();
 
-    const float3x3 AP1_to_XYZ = generate_RGB_to_XYZ_matrix(1); // AP1 == 1
     initialise_cusp_table(gamutCuspTableAP1, gamutCuspTableSize, AP1_to_XYZ);
   }
 
@@ -2833,8 +2853,8 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     else if (diagnosticMode == 25)
     {
       float2 JMcusp            = cuspFromTable(srcRGB.z);
-      float  slope_gain        = limitJmax * focusDist;
-      float  focusJ            = lerp(JMcusp.x, midJ, cuspMidBlend);
+      float  focusJ            = lerp(JMcusp.x, midJ, min(1.0f, cuspMidBlend - (JMcusp.x / limitJmax)));
+      float  slope_gain        = limitJmax * focusDist * getFocusGain(JMh.x, JMcusp.x);
       float3 nickBoundryReturn = findGamutBoundaryIntersection(srcRGB, JMcusp, focusJ, limitJmax, slope_gain, smoothCusps,
                                                                hueDependantUpperHullGamma(srcRGB.z), hueDependantLowerHullGamma(srcRGB.z));
       diagnostic               = float3(srcRGB.x, nickBoundryReturn.y, srcRGB.z);
