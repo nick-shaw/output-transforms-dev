@@ -123,7 +123,7 @@ param:
   // the samples are spaced by HSV hue increments of the limiting RGB gamut
   // so to find the correct entry for a given CAM hue (h) value
   // one must search the table entries for the matching entry.z component
-  #define gamutCuspTableSize 360
+  #define gamutCuspTableSize 360*1
 
   // Blend Between Compressing towards
   // Target Gamut Cusp Luminance (0.0)
@@ -322,9 +322,7 @@ local:
   // so that the 'gamutCuspTable' starts with the lowest JMh.h value
   // both tables need to be declared here since temporary array variables
   // in the init() fuction seem to crash Nuke on some systems
-  float3 tempTableUnsorted[gamutCuspTableSize + 1];
   float3 gamutCuspTable[gamutCuspTableSize + 1];
-  float3 gamutCuspTableAP1[gamutCuspTableSize + 1];
   float3 gamutCuspTableReach[gamutCuspTableSize + 1];
   float3 cgamutCuspTable[gamutCuspTableSize + 1];
   float3 cgamutReachTable[gamutCuspTableSize + 1];
@@ -1278,48 +1276,6 @@ local:
       }
       lo = gamutCuspTable[high_i - 1];
       hi = gamutCuspTable[high_i];
-    }
-
-    float t = (h - lo.z) / (hi.z - lo.z);
-
-    float cuspJ = lerp(lo.x, hi.x, t);
-    float cuspM = lerp(lo.y, hi.y, t);
-
-    return float2(cuspJ, cuspM);
-  }
-
-  float2 cuspFromTableAP1(float h)
-  {
-
-    float3 lo;
-    float3 hi;
-
-    if (h <= gamutCuspTableAP1[0].z)
-    {
-      lo   = gamutCuspTableAP1[gamutCuspTableSize - 1];
-      lo.z = lo.z - 360.0f;
-      hi   = gamutCuspTableAP1[0];
-    }
-    else
-    {
-      int low_i  = 0;
-      int high_i = gamutCuspTableSize;
-      int i      = hue_position_in_uniform_table(h, gamutCuspTableSize);
-
-      while (low_i + 1 < high_i)
-      {
-        if (h > gamutCuspTableAP1[i].z)
-        {
-          low_i = i;
-        }
-        else
-        {
-          high_i = i;
-        }
-        i = midpoint(low_i, high_i);
-      }
-      lo = gamutCuspTableAP1[high_i - 1];
-      hi = gamutCuspTableAP1[high_i];
     }
 
     float t = (h - lo.z) / (hi.z - lo.z);
@@ -2420,12 +2376,11 @@ float Y_to_Hellwig_J(float Y, float3 surround)
 
     initialise_upper_hull_gamma();
     initialise_lower_hull_gamma();
-
-    initialise_cusp_table(gamutCuspTableAP1, gamutCuspTableSize, inWhite, AP1_to_XYZ);
   }
 
   void initialise_cusp_table(float3 output_table[], const int table_size, float3 refWhite, const float3x3& matrix)
   {
+    float3 tempTableUnsorted[gamutCuspTableSize + 1];
     int minhIndex = 0;
     for (int i = 0; i < table_size; ++i)
     {
@@ -2745,12 +2700,6 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     {
       // output gamut cusp
       const float2 JMcusp = cuspFromTable(srcRGB.z);
-      diagnostic          = float3(JMcusp.x, JMcusp.y, srcRGB.z);
-    }
-    else if (diagnosticMode == 15)
-    {
-      // output AP1 cusp
-      const float2 JMcusp = cuspFromTableAP1(srcRGB.z);
       diagnostic          = float3(JMcusp.x, JMcusp.y, srcRGB.z);
     }
     else if (diagnosticMode == 16)
