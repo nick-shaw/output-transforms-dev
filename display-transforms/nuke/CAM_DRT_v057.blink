@@ -123,7 +123,7 @@ param:
   // the samples are spaced by HSV hue increments of the limiting RGB gamut
   // so to find the correct entry for a given CAM hue (h) value
   // one must search the table entries for the matching entry.z component
-  int gamutCuspTableSize;
+  #define gamutCuspTableSize 360
 
   // Blend Between Compressing towards
   // Target Gamut Cusp Luminance (0.0)
@@ -322,15 +322,15 @@ local:
   // so that the 'gamutCuspTable' starts with the lowest JMh.h value
   // both tables need to be declared here since temporary array variables
   // in the init() fuction seem to crash Nuke on some systems
-  float3 tempTableUnsorted[360];
-  float3 gamutCuspTable[360];
-  float3 gamutCuspTableAP1[360];
-  float3 gamutCuspTableReach[360];
-  float3 cgamutCuspTable[360];
-  float3 cgamutReachTable[360];
-  float  gamutTopGamma[360];
-  float  gamutBottomGamma[360];
-  float  LocusLimitMTable[360];
+  float3 tempTableUnsorted[gamutCuspTableSize + 1];
+  float3 gamutCuspTable[gamutCuspTableSize + 1];
+  float3 gamutCuspTableAP1[gamutCuspTableSize + 1];
+  float3 gamutCuspTableReach[gamutCuspTableSize + 1];
+  float3 cgamutCuspTable[gamutCuspTableSize + 1];
+  float3 cgamutReachTable[gamutCuspTableSize + 1];
+  float  gamutTopGamma[gamutCuspTableSize + 1];
+  float  gamutBottomGamma[gamutCuspTableSize + 1];
+  float  LocusLimitMTable[gamutCuspTableSize + 1];
 
   void define()
   {
@@ -1258,16 +1258,10 @@ local:
       lo.z = lo.z - 360.0f;
       hi   = gamutCuspTable[0];
     }
-    else if (h >= gamutCuspTable[gamutCuspTableSize - 1].z)
-    {
-      lo   = gamutCuspTable[gamutCuspTableSize - 1];
-      hi   = gamutCuspTable[0];
-      hi.z = hi.z + 360.f;
-    }
     else
     {
       int low_i  = 0;
-      int high_i = gamutCuspTableSize - 1;
+      int high_i = gamutCuspTableSize;
       int i      = hue_position_in_uniform_table(h, gamutCuspTableSize);
 
       while (low_i + 1 < high_i)
@@ -1306,16 +1300,10 @@ local:
       lo.z = lo.z - 360.0f;
       hi   = gamutCuspTableAP1[0];
     }
-    else if (h >= gamutCuspTableAP1[gamutCuspTableSize - 1].z)
-    {
-      lo   = gamutCuspTableAP1[gamutCuspTableSize - 1];
-      hi   = gamutCuspTableAP1[0];
-      hi.z = hi.z + 360.f;
-    }
     else
     {
       int low_i  = 0;
-      int high_i = gamutCuspTableSize - 1;
+      int high_i = gamutCuspTableSize;
       int i      = hue_position_in_uniform_table(h, gamutCuspTableSize);
 
       while (low_i + 1 < high_i)
@@ -1345,10 +1333,9 @@ local:
   float2 cuspFromTableLocus(float h)
   {
     const int i_lo = hue_position_in_uniform_table(h, gamutCuspTableSize);
-    const int i_hi = next_position_in_table(i_lo, gamutCuspTableSize);
 
     const float lo = LocusLimitMTable[i_lo];
-    const float hi = LocusLimitMTable[i_hi];
+    const float hi = LocusLimitMTable[i_lo + 1];
 
     const float base_hue = base_hue_for_position(i_lo, gamutCuspTableSize);
     const float t        = h - base_hue;
@@ -1369,16 +1356,10 @@ local:
       lo.z = lo.z - 360.0f;
       hi   = cgamutCuspTable[0];
     }
-    else if (h >= cgamutCuspTable[gamutCuspTableSize - 1].z)
-    {
-      lo   = cgamutCuspTable[gamutCuspTableSize - 1];
-      hi   = cgamutCuspTable[0];
-      hi.z = hi.z + 360.f;
-    }
     else
     {
       int low_i  = 0;
-      int high_i = gamutCuspTableSize - 1;
+      int high_i = gamutCuspTableSize;
       int i      = hue_position_in_uniform_table(h, gamutCuspTableSize);
 
       while (low_i + 1 < high_i)
@@ -1415,15 +1396,9 @@ local:
     return y;
   }
 
-  inline int hue_position_in_uniform_table(float hue, int table_size)
+  inline int hue_position_in_uniform_table(float wrapped_hue, int table_size)
   {
-    const float wrapped_hue = wrap_to_360(hue);
     return int(wrapped_hue / 360.0f * table_size);
-  }
-
-  inline int next_position_in_table(int entry, int table_size)
-  {
-    return (entry + 1) % table_size;
   }
 
   inline float base_hue_for_position(int i_lo, int table_size)
@@ -1434,10 +1409,9 @@ local:
   float cReachFromTable(float h)
   {
     const int i_lo = hue_position_in_uniform_table(h, gamutCuspTableSize);
-    const int i_hi = next_position_in_table(i_lo, gamutCuspTableSize);
 
     const float3 lo = cgamutReachTable[i_lo];
-    const float3 hi = cgamutReachTable[i_hi];
+    const float3 hi = cgamutReachTable[i_lo + 1];
 
     const float t = (h - lo.z) / (hi.z - lo.z);
     return lerp(lo.y, hi.y, t);
@@ -1748,12 +1722,11 @@ float Y_to_Hellwig_J(float Y, float3 surround)
       return upperHullGamma;
 
     const int i_lo = hue_position_in_uniform_table(h, gamutCuspTableSize);
-    const int i_hi = next_position_in_table(i_lo, gamutCuspTableSize);
 
     const float base_hue = base_hue_for_position(i_lo, gamutCuspTableSize);
     const float t        = h - base_hue;
 
-    return lerp(gamutTopGamma[i_lo], gamutTopGamma[i_hi], t);
+    return lerp(gamutTopGamma[i_lo], gamutTopGamma[i_lo + 1], t);
   }
 
   float hueDependantLowerHullGamma(float h)
@@ -1762,12 +1735,11 @@ float Y_to_Hellwig_J(float Y, float3 surround)
       return lowerHullGamma;
 
     const int i_lo = hue_position_in_uniform_table(h, gamutCuspTableSize);
-    const int i_hi = next_position_in_table(i_lo, gamutCuspTableSize);
 
     const float base_hue = base_hue_for_position(i_lo, gamutCuspTableSize);
     const float t        = h - base_hue;
 
-    return lerp(gamutBottomGamma[i_lo], gamutBottomGamma[i_hi], t);
+    return lerp(gamutBottomGamma[i_lo], gamutBottomGamma[i_lo + 1], t);
   }
 
   // reimplemented from https://github.com/nick-shaw/aces-ot-vwg-experiments/blob/master/python/intersection_approx.py
@@ -1879,10 +1851,9 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     const float h = Jmh.z;
 
     const int i_lo = hue_position_in_uniform_table(h, gamutCuspTableSize);
-    const int i_hi = next_position_in_table(i_lo, gamutCuspTableSize);
 
     const float3 lo = gamutCuspTableReach[i_lo];
-    const float3 hi = gamutCuspTableReach[i_hi];
+    const float3 hi = gamutCuspTableReach[i_lo + 1];
 
     const float t = (h - lo.z) / (hi.z - lo.z);
 
@@ -2296,7 +2267,8 @@ float Y_to_Hellwig_J(float Y, float3 surround)
       150.3545532, 151.8509674, 153.4246826, 155.0567017, 156.7265472, 158.4546509, 160.2428131, 162.1348267, 164.1415863, 166.2302551,
       168.4024506, 170.5583649, 172.6457672, 174.9460449, 177.2792664, 179.6472473, 182.1867218, 184.5882721, 187.3068848, 189.8807373,
       192.5116577, 195.5551453, 198.5196381, 201.3429413, 203.941452,  206.8439484, 209.5599213, 212.4866943, 215.0750885, 217.929306,
-      220.6668701, 223.364151,  226.2115479, 228.9524536, 231.5583954, 234.405304,  237.0275879, 239.5091705, 242.0047455, 242.0177155};
+      220.6668701, 223.364151,  226.2115479, 228.9524536, 231.5583954, 234.405304,  237.0275879, 239.5091705, 242.0047455, 242.0177155,
+      244.8230133};
 
     // populate the input primaries matrix
     RGB_to_XYZ_input = generate_RGB_to_XYZ_matrix(primariesIn);
@@ -2466,6 +2438,10 @@ float Y_to_Hellwig_J(float Y, float3 surround)
       }
     }
     copy_table_rotated(tempTableUnsorted, table_size, output_table, minhIndex);
+
+    // Add extra entry to wrap
+    output_table[gamutCuspTableSize]   = output_table[0];
+    output_table[gamutCuspTableSize].z = output_table[gamutCuspTableSize].z + 360.0f;
   }
 
   void copy_table_rotated(float3 tableUnsorted[], const int tableSize, float3 output_table[], const int offsetIndex)
@@ -2514,6 +2490,9 @@ float Y_to_Hellwig_J(float Y, float3 surround)
       output_table[i].y = high;
       output_table[i].z = hue;
     }
+    // Wrap last entry in table
+    output_table[table_size] = output_table[0];
+    output_table[table_size].z += 360.0f;
   }
 
   inline bool outside_hull(const float3 newLimitRGB)
@@ -2602,7 +2581,9 @@ float Y_to_Hellwig_J(float Y, float3 surround)
       }
       gamutTopGamma[i] = testGamma;
     }
-  }
+    // Wrap the last entry
+    gamutTopGamma[gamutCuspTableSize] = gamutTopGamma[0];
+   }
 
   inline bool any_below_zero(const float3 newLimitRGB)
   {
@@ -2682,6 +2663,8 @@ float Y_to_Hellwig_J(float Y, float3 surround)
       }
       gamutBottomGamma[i] = testGamma;
     }
+    // Wrap the last entry
+    gamutBottomGamma[gamutCuspTableSize] = gamutBottomGamma[0];
   }
 
   void process()
