@@ -123,7 +123,7 @@ param:
   // the samples are spaced by HSV hue increments of the limiting RGB gamut
   // so to find the correct entry for a given CAM hue (h) value
   // one must search the table entries for the matching entry.z component
-  #define gamutCuspTableSize 360*1
+  int gamutCuspTableSize;
 
   // Blend Between Compressing towards
   // Target Gamut Cusp Luminance (0.0)
@@ -322,12 +322,15 @@ local:
   // so that the 'gamutCuspTable' starts with the lowest JMh.h value
   // both tables need to be declared here since temporary array variables
   // in the init() fuction seem to crash Nuke on some systems
-  float3 gamutCuspTable[gamutCuspTableSize + 1];
-  float3 gamutCuspTableReach[gamutCuspTableSize + 1];
-  float3 cgamutCuspTable[gamutCuspTableSize + 1];
-  float3 cgamutReachTable[gamutCuspTableSize + 1];
-  float2 gamutGammas[gamutCuspTableSize + 1];
-  float  LocusLimitMTable[gamutCuspTableSize + 1];
+  float3 tempTableUnsorted[360];
+  float3 gamutCuspTable[360];
+  float3 gamutCuspTableAP1[360];
+  float3 gamutCuspTableReach[360];
+  float3 cgamutCuspTable[360];
+  float3 cgamutReachTable[360];
+  float  gamutTopGamma[360];
+  float  gamutBottomGamma[360];
+  float  LocusLimitMTable[360];
 
   void define()
   {
@@ -1255,10 +1258,16 @@ local:
       lo.z = lo.z - 360.0f;
       hi   = gamutCuspTable[0];
     }
+    else if (h >= gamutCuspTable[gamutCuspTableSize - 1].z)
+    {
+      lo   = gamutCuspTable[gamutCuspTableSize - 1];
+      hi   = gamutCuspTable[0];
+      hi.z = hi.z + 360.f;
+    }
     else
     {
       int low_i  = 0;
-      int high_i = gamutCuspTableSize;
+      int high_i = gamutCuspTableSize - 1;
       int i      = hue_position_in_uniform_table(h, gamutCuspTableSize);
 
       while (low_i + 1 < high_i)
@@ -1285,12 +1294,61 @@ local:
     return float2(cuspJ, cuspM);
   }
 
+  float2 cuspFromTableAP1(float h)
+  {
+
+    float3 lo;
+    float3 hi;
+
+    if (h <= gamutCuspTableAP1[0].z)
+    {
+      lo   = gamutCuspTableAP1[gamutCuspTableSize - 1];
+      lo.z = lo.z - 360.0f;
+      hi   = gamutCuspTableAP1[0];
+    }
+    else if (h >= gamutCuspTableAP1[gamutCuspTableSize - 1].z)
+    {
+      lo   = gamutCuspTableAP1[gamutCuspTableSize - 1];
+      hi   = gamutCuspTableAP1[0];
+      hi.z = hi.z + 360.f;
+    }
+    else
+    {
+      int low_i  = 0;
+      int high_i = gamutCuspTableSize - 1;
+      int i      = hue_position_in_uniform_table(h, gamutCuspTableSize);
+
+      while (low_i + 1 < high_i)
+      {
+        if (h > gamutCuspTableAP1[i].z)
+        {
+          low_i = i;
+        }
+        else
+        {
+          high_i = i;
+        }
+        i = midpoint(low_i, high_i);
+      }
+      lo = gamutCuspTableAP1[high_i - 1];
+      hi = gamutCuspTableAP1[high_i];
+    }
+
+    float t = (h - lo.z) / (hi.z - lo.z);
+
+    float cuspJ = lerp(lo.x, hi.x, t);
+    float cuspM = lerp(lo.y, hi.y, t);
+
+    return float2(cuspJ, cuspM);
+  }
+
   float2 cuspFromTableLocus(float h)
   {
     const int i_lo = hue_position_in_uniform_table(h, gamutCuspTableSize);
+    const int i_hi = next_position_in_table(i_lo, gamutCuspTableSize);
 
     const float lo = LocusLimitMTable[i_lo];
-    const float hi = LocusLimitMTable[i_lo + 1];
+    const float hi = LocusLimitMTable[i_hi];
 
     const float base_hue = base_hue_for_position(i_lo, gamutCuspTableSize);
     const float t        = h - base_hue;
@@ -1311,10 +1369,16 @@ local:
       lo.z = lo.z - 360.0f;
       hi   = cgamutCuspTable[0];
     }
+    else if (h >= cgamutCuspTable[gamutCuspTableSize - 1].z)
+    {
+      lo   = cgamutCuspTable[gamutCuspTableSize - 1];
+      hi   = cgamutCuspTable[0];
+      hi.z = hi.z + 360.f;
+    }
     else
     {
       int low_i  = 0;
-      int high_i = gamutCuspTableSize;
+      int high_i = gamutCuspTableSize - 1;
       int i      = hue_position_in_uniform_table(h, gamutCuspTableSize);
 
       while (low_i + 1 < high_i)
@@ -1351,9 +1415,15 @@ local:
     return y;
   }
 
-  inline int hue_position_in_uniform_table(float wrapped_hue, int table_size)
+  inline int hue_position_in_uniform_table(float hue, int table_size)
   {
+    const float wrapped_hue = wrap_to_360(hue);
     return int(wrapped_hue / 360.0f * table_size);
+  }
+
+  inline int next_position_in_table(int entry, int table_size)
+  {
+    return (entry + 1) % table_size;
   }
 
   inline float base_hue_for_position(int i_lo, int table_size)
@@ -1364,9 +1434,10 @@ local:
   float cReachFromTable(float h)
   {
     const int i_lo = hue_position_in_uniform_table(h, gamutCuspTableSize);
+    const int i_hi = next_position_in_table(i_lo, gamutCuspTableSize);
 
     const float3 lo = cgamutReachTable[i_lo];
-    const float3 hi = cgamutReachTable[i_lo + 1];
+    const float3 hi = cgamutReachTable[i_hi];
 
     const float t = (h - lo.z) / (hi.z - lo.z);
     return lerp(lo.y, hi.y, t);
@@ -1671,13 +1742,32 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     return untonemappedColourJMh;
   }
 
-  float2 hueDependantHullGammas(float h)
+  float hueDependantUpperHullGamma(float h)
   {
-    const int   i_lo     = hue_position_in_uniform_table(h, gamutCuspTableSize);
+    if (disableUpperHullGamma)
+      return upperHullGamma;
+
+    const int i_lo = hue_position_in_uniform_table(h, gamutCuspTableSize);
+    const int i_hi = next_position_in_table(i_lo, gamutCuspTableSize);
+
     const float base_hue = base_hue_for_position(i_lo, gamutCuspTableSize);
     const float t        = h - base_hue;
 
-    return lerp(gamutGammas[i_lo], gamutGammas[i_lo + 1], t);
+    return lerp(gamutTopGamma[i_lo], gamutTopGamma[i_hi], t);
+  }
+
+  float hueDependantLowerHullGamma(float h)
+  {
+    if (disableLowerHullGamma)
+      return lowerHullGamma;
+
+    const int i_lo = hue_position_in_uniform_table(h, gamutCuspTableSize);
+    const int i_hi = next_position_in_table(i_lo, gamutCuspTableSize);
+
+    const float base_hue = base_hue_for_position(i_lo, gamutCuspTableSize);
+    const float t        = h - base_hue;
+
+    return lerp(gamutBottomGamma[i_lo], gamutBottomGamma[i_hi], t);
   }
 
   // reimplemented from https://github.com/nick-shaw/aces-ot-vwg-experiments/blob/master/python/intersection_approx.py
@@ -1751,7 +1841,7 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     float mf = m * f;
     float xi = 1.0f;
     float g1 = 1.0f / model_gamma;
-    float g2 = hueDependantHullGammas(h).y;
+    float g2 = hueDependantUpperHullGamma(h);
 
     if (m * xc + c < yc)
     {
@@ -1789,9 +1879,10 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     const float h = Jmh.z;
 
     const int i_lo = hue_position_in_uniform_table(h, gamutCuspTableSize);
+    const int i_hi = next_position_in_table(i_lo, gamutCuspTableSize);
 
     const float3 lo = gamutCuspTableReach[i_lo];
-    const float3 hi = gamutCuspTableReach[i_lo + 1];
+    const float3 hi = gamutCuspTableReach[i_hi];
 
     const float t = (h - lo.z) / (hi.z - lo.z);
 
@@ -1987,8 +2078,9 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     }
     else if (boundryIntersectionMethod == 2)
     {
-      const float2 gammas      = hueDependantHullGammas(JMh.z);
-      float3 nickBoundryReturn = findGamutBoundaryIntersection(JMh, JMcusp, focusJ, limitJmax, slope_gain, smoothCusps, gammas.x, gammas.y);
+      float  gamma_top         = hueDependantUpperHullGamma(JMh.z);
+      float  gamma_bottom      = hueDependantLowerHullGamma(JMh.z);
+      float3 nickBoundryReturn = findGamutBoundaryIntersection(JMh, JMcusp, focusJ, limitJmax, slope_gain, smoothCusps, gamma_top, gamma_bottom);
       JMboundary               = float2(nickBoundryReturn.x, nickBoundryReturn.y);
       project_to               = float2(nickBoundryReturn.z, 0.0f);
       projectJ                 = nickBoundryReturn.z;
@@ -2204,8 +2296,7 @@ float Y_to_Hellwig_J(float Y, float3 surround)
       150.3545532, 151.8509674, 153.4246826, 155.0567017, 156.7265472, 158.4546509, 160.2428131, 162.1348267, 164.1415863, 166.2302551,
       168.4024506, 170.5583649, 172.6457672, 174.9460449, 177.2792664, 179.6472473, 182.1867218, 184.5882721, 187.3068848, 189.8807373,
       192.5116577, 195.5551453, 198.5196381, 201.3429413, 203.941452,  206.8439484, 209.5599213, 212.4866943, 215.0750885, 217.929306,
-      220.6668701, 223.364151,  226.2115479, 228.9524536, 231.5583954, 234.405304,  237.0275879, 239.5091705, 242.0047455, 242.0177155,
-      244.8230133};
+      220.6668701, 223.364151,  226.2115479, 228.9524536, 231.5583954, 234.405304,  237.0275879, 239.5091705, 242.0047455, 242.0177155};
 
     // populate the input primaries matrix
     RGB_to_XYZ_input = generate_RGB_to_XYZ_matrix(primariesIn);
@@ -2357,17 +2448,13 @@ float Y_to_Hellwig_J(float Y, float3 surround)
 
     initialise_upper_hull_gamma();
     initialise_lower_hull_gamma();
+
+    initialise_cusp_table(gamutCuspTableAP1, gamutCuspTableSize, inWhite, AP1_to_XYZ);
   }
 
   void initialise_cusp_table(float3 output_table[], const int table_size, float3 refWhite, const float3x3& matrix)
   {
-    // the 'tempTableUnsorted' table is populated
-    // in increments of H of the limiting gamut HSV space starting at H=0.0
-    // since it is unlikely that HSV.H=0 and JMh.h=0 line up
-    // the entries are then wrap-around shifted
-    // so that the 'gamutCuspTable' starts with the lowest JMh.h value
-    float3 tempTableUnsorted[gamutCuspTableSize];
-    int    minhIndex = 0;
+    int minhIndex = 0;
     for (int i = 0; i < table_size; ++i)
     {
       const float  hNorm   = float(i) / (table_size);
@@ -2379,10 +2466,6 @@ float Y_to_Hellwig_J(float Y, float3 surround)
       }
     }
     copy_table_rotated(tempTableUnsorted, table_size, output_table, minhIndex);
-
-    // Add extra entry to wrap
-    output_table[gamutCuspTableSize]   = output_table[0];
-    output_table[gamutCuspTableSize].z = output_table[gamutCuspTableSize].z + 360.0f;
   }
 
   void copy_table_rotated(float3 tableUnsorted[], const int tableSize, float3 output_table[], const int offsetIndex)
@@ -2431,9 +2514,6 @@ float Y_to_Hellwig_J(float Y, float3 surround)
       output_table[i].y = high;
       output_table[i].z = hue;
     }
-    // Wrap last entry in table
-    output_table[table_size] = output_table[0];
-    output_table[table_size].z += 360.0f;
   }
 
   inline bool outside_hull(const float3 newLimitRGB)
@@ -2480,14 +2560,9 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     const float testPositions[test_count] = {0.01f, 0.5f, 0.99f};
     for (int i = 0; i < gamutCuspTableSize; ++i)
     {
-      if (disableUpperHullGamma)
-      {
-        gamutGammas[i].x =  upperHullGamma;
-        continue;
-      }
       const float hue = base_hue_for_position(i, gamutCuspTableSize);
       //  default value. This will get overridden as we loop, but can be a good diagnostic to make sure things are working
-      gamutGammas[i].x    = -1.0f;
+      gamutTopGamma[i]    = -1.0f;
       const float2 JMcusp = cuspFromTable(hue);
       float3       testJmh[test_count];
       for (int testIndex = 0; testIndex < test_count; ++testIndex)
@@ -2525,11 +2600,9 @@ float Y_to_Hellwig_J(float Y, float3 surround)
           low = testGamma;
         }
       }
-      gamutGammas[i].x = testGamma;
+      gamutTopGamma[i] = testGamma;
     }
-    // Wrap the last entry
-    gamutGammas[gamutCuspTableSize].x = gamutGammas[0].x;
-   }
+  }
 
   inline bool any_below_zero(const float3 newLimitRGB)
   {
@@ -2568,14 +2641,9 @@ float Y_to_Hellwig_J(float Y, float3 surround)
 
     for (int i = 0; i < gamutCuspTableSize; ++i)
     {
-      if (disableLowerHullGamma)
-      {
-        gamutGammas[i].y = lowerHullGamma;
-        continue;
-      }
       const float hue = base_hue_for_position(i, gamutCuspTableSize);
 
-      gamutGammas[i].y = -1.0f;
+      gamutBottomGamma[i] = -1.0f;
       const float2 JMcusp = cuspFromTable(hue);
       float3       testJmh[test_count];
       for (int testIndex = 0; testIndex < test_count; ++testIndex)
@@ -2612,10 +2680,8 @@ float Y_to_Hellwig_J(float Y, float3 surround)
           low = testGamma;
         }
       }
-      gamutGammas[i].x = testGamma;
+      gamutBottomGamma[i] = testGamma;
     }
-    // Wrap the last entry
-    gamutGammas[gamutCuspTableSize].y = gamutGammas[0].y;
   }
 
   void process()
@@ -2698,6 +2764,12 @@ float Y_to_Hellwig_J(float Y, float3 surround)
       const float2 JMcusp = cuspFromTable(srcRGB.z);
       diagnostic          = float3(JMcusp.x, JMcusp.y, srcRGB.z);
     }
+    else if (diagnosticMode == 15)
+    {
+      // output AP1 cusp
+      const float2 JMcusp = cuspFromTableAP1(srcRGB.z);
+      diagnostic          = float3(JMcusp.x, JMcusp.y, srcRGB.z);
+    }
     else if (diagnosticMode == 16)
     {
       // output Locus cusp
@@ -2727,7 +2799,7 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     else if (diagnosticMode == 21)
     {
       // output JMFocus
-      diagnostic = float3(hueDependantHullGammas(srcRGB.z).y, 0.0f, 0.0f);
+      diagnostic = float3(hueDependantUpperHullGamma(srcRGB.z), 0.0f, 0.0f);
     }
     else if (diagnosticMode == 22)
     {
@@ -2742,8 +2814,8 @@ float Y_to_Hellwig_J(float Y, float3 surround)
       // create test value halfway between the cusp and the Jmax
       float  slope_gain  = limitJmax * focusDist;
       float3 testJmh     = float3(JMcusp.x + ((limitJmax - JMcusp.x) / 2.0f), JMcusp.y, srcRGB.z);
-      const float2 gammas = hueDependantHullGammas(srcRGB.z);
-      float3 approxLimit = findGamutBoundaryIntersection(testJmh, JMcusp, (JMcusp.x + 38.0f) / 2, limitJmax, slope_gain, smoothCusps, gammas.x, gammas.y);
+      float3 approxLimit = findGamutBoundaryIntersection(testJmh, JMcusp, (JMcusp.x + 38.0f) / 2, limitJmax, slope_gain, smoothCusps,
+                                                         hueDependantUpperHullGamma(srcRGB.z), hueDependantLowerHullGamma(srcRGB.z));
       diagnostic         = float3(approxLimit.x, approxLimit.y, srcRGB.z);
     }
 
@@ -2753,8 +2825,8 @@ float Y_to_Hellwig_J(float Y, float3 surround)
       // create test value halfway between the cusp and the Jmax
       float  slope_gain  = limitJmax * focusDist;
       float3 testJmh     = float3(JMcusp.x + ((limitJmax - JMcusp.x) / 2.0f), JMcusp.y, srcRGB.z);
-      const float2 gammas      = hueDependantHullGammas(srcRGB.z);
-      float3 approxLimit = findGamutBoundaryIntersection(testJmh, JMcusp, (JMcusp.x + 38.0f) / 2, limitJmax, slope_gain, smoothCusps, gammas.x, gammas.y);
+      float3 approxLimit = findGamutBoundaryIntersection(testJmh, JMcusp, (JMcusp.x + 38.0f) / 2, limitJmax, slope_gain, smoothCusps,
+                                                         hueDependantUpperHullGamma(srcRGB.z), hueDependantLowerHullGamma(srcRGB.z));
       float3 newLimitRGB = JMh_to_RGB(float3(approxLimit.x, approxLimit.y, srcRGB.z), limitWhite, XYZ_to_RGB_limit);
       diagnostic         = newLimitRGB;
     }
@@ -2764,8 +2836,8 @@ float Y_to_Hellwig_J(float Y, float3 surround)
       float2 JMcusp            = cuspFromTable(srcRGB.z);
       float  focusJ            = lerp(JMcusp.x, midJ, min(1.0f, cuspMidBlend - (JMcusp.x / limitJmax)));
       float  slope_gain        = limitJmax * focusDist * getFocusGain(JMh.x, JMcusp.x);
-      const float2 gammas      = hueDependantHullGammas(srcRGB.z);
-      float3 nickBoundryReturn = findGamutBoundaryIntersection(srcRGB, JMcusp, focusJ, limitJmax, slope_gain, smoothCusps, gammas.x, gammas.y);
+      float3 nickBoundryReturn = findGamutBoundaryIntersection(srcRGB, JMcusp, focusJ, limitJmax, slope_gain, smoothCusps,
+                                                               hueDependantUpperHullGamma(srcRGB.z), hueDependantLowerHullGamma(srcRGB.z));
       diagnostic               = float3(srcRGB.x, nickBoundryReturn.y, srcRGB.z);
     }
     else if (diagnosticMode == 26)
@@ -2777,15 +2849,14 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     else if (diagnosticMode == 27)
     {
       // output
-      diagnostic = float3(hueDependantHullGammas(srcRGB.z).x, 0.0f, 0.0f);
+      diagnostic = float3(hueDependantLowerHullGamma(srcRGB.z), 0.0f, 0.0f);
     }
     else if (diagnosticMode == 28)
     {
       // output
       float2 JMcusp = cuspFromTable(srcRGB.z);
-      const float2 gammas = hueDependantHullGammas(srcRGB.z);
       diagnostic    = findGamutBoundaryIntersection(srcRGB, JMcusp, lerp(JMcusp.x, midJ, cuspMidBlend), limitJmax, 10000.0f, 0.0f,
-                                                    gammas.x, gammas.y);
+                                                    hueDependantUpperHullGamma(srcRGB.z), hueDependantLowerHullGamma(srcRGB.z));
     }
 
     // extra modes to allow for easier breakout of the order of events.
