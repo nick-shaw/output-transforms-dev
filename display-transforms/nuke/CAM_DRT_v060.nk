@@ -92,7 +92,7 @@ Group {
  addUserKnob {7 focusgain l "focus gain" -STARTLINE}
  focusgain 0.55
  addUserKnob {19 compression_params l compression t "the threshold, min limit, max limit, and power parameters for the PowerP compression function\n\nvalues below the threshold will not be compressed and values at the limit will be compressed towards the gamut boundary while the power values defines the shape of the curve"}
- compression_params {0.75 1.1 1.3 1.2}
+ compression_params {0.75 1.1 1.3 1.0}
  addUserKnob {6 compression_params_panelDropped l "panel dropped state" -STARTLINE +HIDDEN}
  addUserKnob {7 smooth_cusps l "smooth cusps" t "the amount by how much to smooth the edges and corners of the limiting gamut cube, except the black & white corners."}
  smooth_cusps 0.12
