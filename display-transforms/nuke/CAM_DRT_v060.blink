@@ -322,10 +322,10 @@ local:
   // so that the 'gamutCuspTable' starts with the lowest JMh.h value
   // both tables need to be declared here since temporary array variables
   // in the init() fuction seem to crash Nuke on some systems
-  float3 gamutCuspTable[gamutCuspTableSize + 1];
-  float3 gamutCuspTableReach[gamutCuspTableSize + 1];
-  float3 cgamutCuspTable[gamutCuspTableSize + 1];
-  float3 cgamutReachTable[gamutCuspTableSize + 1];
+  float4 gamutCuspTable[gamutCuspTableSize + 1];
+  float4 gamutCuspTableReach[gamutCuspTableSize + 1];
+  float4 cgamutCuspTable[gamutCuspTableSize + 1];
+  float4 cgamutReachTable[gamutCuspTableSize + 1];
   float2 gamutGammas[gamutCuspTableSize + 1];
   float  LocusLimitMTable[gamutCuspTableSize + 1];
 
@@ -1252,9 +1252,9 @@ local:
     float3 hi;
     if (h <= gamutCuspTable[0].z)
     {
-      lo   = gamutCuspTable[gamutCuspTableSize - 1];
+      lo   = gamutCuspTable[gamutCuspTableSize - 1].xyz;
       lo.z = lo.z - 360.0f;
-      hi   = gamutCuspTable[0];
+      hi   = gamutCuspTable[0].xyz;
     }
     else
     {
@@ -1274,8 +1274,8 @@ local:
         }
         i = midpoint(low_i, high_i);
       }
-      lo = gamutCuspTable[high_i - 1];
-      hi = gamutCuspTable[high_i];
+      lo = gamutCuspTable[high_i - 1].xyz;
+      hi = gamutCuspTable[high_i].xyz;
     }
 
     float t = (h - lo.z) / (hi.z - lo.z);
@@ -1308,9 +1308,9 @@ local:
 
     if (h <= cgamutCuspTable[0].z)
     {
-      lo   = cgamutCuspTable[gamutCuspTableSize - 1];
+      lo   = cgamutCuspTable[gamutCuspTableSize - 1].xyz;
       lo.z = lo.z - 360.0f;
-      hi   = cgamutCuspTable[0];
+      hi   = cgamutCuspTable[0].xyz;
     }
     else
     {
@@ -1330,12 +1330,11 @@ local:
         }
         i = midpoint(low_i, high_i);
       }
-      lo = cgamutCuspTable[high_i - 1];
-      hi = cgamutCuspTable[high_i];
-    }
-
+      lo = cgamutCuspTable[high_i - 1].xyz;
+      hi = cgamutCuspTable[high_i].xyz;   
+         
+    } 
     float t = (h - lo.z) / (hi.z - lo.z);
-
     float cuspJ = lerp1D(lo.x, hi.x, t);
     float cuspM = lerp1D(lo.y, hi.y, t);
 
@@ -1366,8 +1365,8 @@ local:
   {
     const int i_lo = hue_position_in_uniform_table(h, gamutCuspTableSize);
 
-    const float3 lo = cgamutReachTable[i_lo];
-    const float3 hi = cgamutReachTable[i_lo + 1];
+    const float3 lo = cgamutReachTable[i_lo].xyz;
+    const float3 hi = cgamutReachTable[i_lo + 1].xyz;
 
     const float t = (h - lo.z) / (hi.z - lo.z);
     return lerp1D(lo.y, hi.y, t);
@@ -1393,7 +1392,8 @@ local:
   {
     float2 JMcusp = ccuspFromTable(h);
     float  hr     = radians(h);
-
+    
+    
     float e_t = 1.0f;
 
     // CAM16
@@ -1465,9 +1465,10 @@ local:
   float chromaCompression(float3 JMh, float origJ, float linear, int invert)
   {
     float M = JMh.y;
+    
     if (M == 0.0f)
       return M;
-
+    
     float nJ    = JMh.x / limitJmax;
     float snJ   = max(0.0f, 1.0f - nJ);
     float Mnorm = cusp_with_eccentricity_factor(JMh.z);
@@ -1484,7 +1485,6 @@ local:
       {
         // Normalize M with the rendering space cusp M
         M /= Mnorm;
-
         // Expand the colorfulness by running the toe function in reverse.  The goal is to
         // expand less saturated colors less and more saturated colors more.  The expansion
         // increases saturation in the shadows and mid-tones but not in the highlights.
@@ -1791,8 +1791,8 @@ float Y_to_Hellwig_J(float Y, float3 surround)
 
     const int i_lo = hue_position_in_uniform_table(h, gamutCuspTableSize);
 
-    const float3 lo = gamutCuspTableReach[i_lo];
-    const float3 hi = gamutCuspTableReach[i_lo + 1];
+    const float3 lo = gamutCuspTableReach[i_lo].xyz;
+    const float3 hi = gamutCuspTableReach[i_lo + 1].xyz;
 
     const float t = (h - lo.z) / (hi.z - lo.z);
 
@@ -1965,7 +1965,7 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     float c      = project_from.x < focusJ ? c0 : c1;
 
     // XXX this sqrt can cause NaNs (subtraction goes negative)
-    float J0       = sqrt(b * b - 4 * a * c);
+    float J0       = sqrt(b * b - 4.0 * a * c);
     float J1       = (-b - J0) / (2 * a);
     J0             = (-b + J0) / (2 * a);
     float projectJ = project_from.x < focusJ ? J0 : J1;
@@ -2348,6 +2348,8 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     XYZ_to_RGB_cgReach = XYZ_to_RGB_cgReach.invert();
 
     initialise_cusp_table(cgamutCuspTable, gamutCuspTableSize, inWhite, RGB_to_XYZ_cgReach);
+    
+    
     initialise_reach_cusp_table(cgamutReachTable, gamutCuspTableSize, limitJmax, inWhite, XYZ_to_RGB_cgReach);
 
     // With gamut mapper reach mode 7, use the chroma compression reach space with the
@@ -2367,20 +2369,20 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     initialise_lower_hull_gamma();
   }
 
-  void initialise_cusp_table(float3 output_table[], const int table_size, float3 refWhite, const float3x3& matrix)
+  void initialise_cusp_table(float4 output_table[], const int table_size, float3 refWhite, const float3x3 matrix)
   {
     // the 'tempTableUnsorted' table is populated
     // in increments of H of the limiting gamut HSV space starting at H=0.0
     // since it is unlikely that HSV.H=0 and JMh.h=0 line up
     // the entries are then wrap-around shifted
     // so that the 'gamutCuspTable' starts with the lowest JMh.h value
-    float3 tempTableUnsorted[gamutCuspTableSize];
+    float4 tempTableUnsorted[gamutCuspTableSize];
     int    minhIndex = 0;
     for (int i = 0; i < table_size; ++i)
     {
       const float  hNorm   = float(i) / (table_size);
       const float3 RGB     = HSV_to_RGB(float3(hNorm, 1.0f, 1.0f));
-      tempTableUnsorted[i] = RGB_to_JMh(RGB, refWhite, matrix);
+      tempTableUnsorted[i] = float4(RGB_to_JMh(RGB, refWhite, matrix),1);
       if (tempTableUnsorted[i].z < tempTableUnsorted[minhIndex].z)
       {
         minhIndex = i;
@@ -2393,7 +2395,7 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     output_table[gamutCuspTableSize].z = output_table[gamutCuspTableSize].z + 360.0f;
   }
 
-  void copy_table_rotated(float3 tableUnsorted[], const int tableSize, float3 output_table[], const int offsetIndex)
+  void copy_table_rotated(float4 tableUnsorted[], const int tableSize, float4 output_table[], const int offsetIndex)
   {
     for (int i = 0; i < tableSize; ++i)
     {
@@ -2401,7 +2403,7 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     }
   }
 
-  void initialise_reach_cusp_table(float3 output_table[], const int table_size, const float limitJ, float3 refWhite, const float3x3& matrix)
+  void initialise_reach_cusp_table(float4 output_table[], const int table_size, const float limitJ, float3 refWhite, const float3x3& matrix)
   {
     const float search_range = 100.0;
     for (int i = 0; i < table_size; ++i)
