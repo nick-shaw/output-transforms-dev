@@ -229,7 +229,7 @@ Group {
   DRT_CAM_Kernel_compressionFuncParamsM {{parent.compressionFuncParamsM} {parent.compressionFuncParamsM} {parent.compressionFuncParamsM} {parent.compressionFuncParamsM}}
   DRT_CAM_Kernel_Reachcompressmode {{parent.reachCompressMode}}
   DRT_CAM_Kernel_reachNick true
-  DRT_CAM_Kernel_Locuscompressmode {{parent.BlinkScript1_DRT_CAM_Kernel_Locuscompressmode}}
+  DRT_CAM_Kernel_Locuscompressmode false
   DRT_CAM_Kernel_boundryIntersectionMethod {{boundryIntersectionMethod}}
   DRT_CAM_Kernel_disableLowerHullGamma true
   DRT_CAM_Kernel_lowerHullGamma {{lowerHullGamma}}
