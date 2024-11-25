@@ -1248,13 +1248,13 @@ local:
 
   float2 cuspFromTable(float h)
   {
-    float3 lo;
-    float3 hi;
+    float4 lo;
+    float4 hi;
     if (h <= gamutCuspTable[0].z)
     {
-      lo   = gamutCuspTable[gamutCuspTableSize - 1].xyz;
+      lo   = gamutCuspTable[gamutCuspTableSize - 1];
       lo.z = lo.z - 360.0f;
-      hi   = gamutCuspTable[0].xyz;
+      hi   = gamutCuspTable[0];
     }
     else
     {
@@ -1274,8 +1274,8 @@ local:
         }
         i = midpoint(low_i, high_i);
       }
-      lo = gamutCuspTable[high_i - 1].xyz;
-      hi = gamutCuspTable[high_i].xyz;
+      lo = gamutCuspTable[high_i - 1];
+      hi = gamutCuspTable[high_i];
     }
 
     float t = (h - lo.z) / (hi.z - lo.z);
@@ -1303,14 +1303,14 @@ local:
 
   float2 ccuspFromTable(float h)
   {
-    float3 lo;
-    float3 hi;
+    float4 lo;
+    float4 hi;
 
     if (h <= cgamutCuspTable[0].z)
     {
-      lo   = cgamutCuspTable[gamutCuspTableSize - 1].xyz;
+      lo   = cgamutCuspTable[gamutCuspTableSize - 1];
       lo.z = lo.z - 360.0f;
-      hi   = cgamutCuspTable[0].xyz;
+      hi   = cgamutCuspTable[0];
     }
     else
     {
@@ -1330,8 +1330,8 @@ local:
         }
         i = midpoint(low_i, high_i);
       }
-      lo = cgamutCuspTable[high_i - 1].xyz;
-      hi = cgamutCuspTable[high_i].xyz;   
+      lo = cgamutCuspTable[high_i - 1];
+      hi = cgamutCuspTable[high_i];   
          
     } 
     float t = (h - lo.z) / (hi.z - lo.z);
@@ -1365,8 +1365,8 @@ local:
   {
     const int i_lo = hue_position_in_uniform_table(h, gamutCuspTableSize);
 
-    const float3 lo = cgamutReachTable[i_lo].xyz;
-    const float3 hi = cgamutReachTable[i_lo + 1].xyz;
+    const float4 lo = cgamutReachTable[i_lo];
+    const float4 hi = cgamutReachTable[i_lo + 1];
 
     const float t = (h - lo.z) / (hi.z - lo.z);
     return lerp1D(lo.y, hi.y, t);
@@ -1791,8 +1791,8 @@ float Y_to_Hellwig_J(float Y, float3 surround)
 
     const int i_lo = hue_position_in_uniform_table(h, gamutCuspTableSize);
 
-    const float3 lo = gamutCuspTableReach[i_lo].xyz;
-    const float3 hi = gamutCuspTableReach[i_lo + 1].xyz;
+    const float4 lo = gamutCuspTableReach[i_lo];
+    const float4 hi = gamutCuspTableReach[i_lo + 1];
 
     const float t = (h - lo.z) / (hi.z - lo.z);
 
@@ -1965,7 +1965,7 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     float c      = project_from.x < focusJ ? c0 : c1;
 
     // XXX this sqrt can cause NaNs (subtraction goes negative)
-    float J0       = sqrt(b * b - 4.0 * a * c);
+    float J0       = sqrt(b * b - 4.f * a * c);
     float J1       = (-b - J0) / (2 * a);
     J0             = (-b + J0) / (2 * a);
     float projectJ = project_from.x < focusJ ? J0 : J1;
@@ -2369,7 +2369,7 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     initialise_lower_hull_gamma();
   }
 
-  void initialise_cusp_table(float4 output_table[], const int table_size, float3 refWhite, const float3x3 matrix)
+  void initialise_cusp_table(float4 output_table[], const int table_size, float3 refWhite, const float3x3& matrix)
   {
     // the 'tempTableUnsorted' table is populated
     // in increments of H of the limiting gamut HSV space starting at H=0.0
@@ -2382,7 +2382,8 @@ float Y_to_Hellwig_J(float Y, float3 surround)
     {
       const float  hNorm   = float(i) / (table_size);
       const float3 RGB     = HSV_to_RGB(float3(hNorm, 1.0f, 1.0f));
-      tempTableUnsorted[i] = float4(RGB_to_JMh(RGB, refWhite, matrix),1);
+      const float3 t = RGB_to_JMh(RGB, refWhite, matrix);
+      tempTableUnsorted[i] = float4(t.x, t.y, t.z, 1.f);
       if (tempTableUnsorted[i].z < tempTableUnsorted[minhIndex].z)
       {
         minhIndex = i;
