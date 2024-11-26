@@ -6,8 +6,8 @@ Group {
  label "Input: \[value encoding_in]  / \[value primaries_in]\nLimit: \[value primaries_limit] / \[value white_limit] / \[value peak_luminance]nits\nOutput: \[value encoding_out] / \[value primaries_out]\n\[value toneScaleMode]\n\[file tail \[value BlinkScript1.kernelSourceFile]]"
  note_font "Bitstream Vera Sans"
  selected true
- xpos -42
- ypos -24
+ xpos -51
+ ypos -32
  addUserKnob {20 User}
  addUserKnob {26 input_div l Input}
  addUserKnob {4 encoding_in l encoding t "the input log or gamma encoding" M {Linear ACEScct sRGB BT.1886 "Gamma 2.6" ST2084 "" ""}}
@@ -161,6 +161,7 @@ Group {
  addUserKnob {41 DRT_CAM_Kernel_diagnosticMode l diagnosticMode T BlinkScript1.DRT_CAM_Kernel_diagnosticMode}
  addUserKnob {26 blink_kernel_div l "Blink Kernel"}
  addUserKnob {6 use_gpu l "Use GPU if available" +STARTLINE}
+ use_gpu true
  addUserKnob {26 ""}
  addUserKnob {41 kernelSourceFile l "Kernel File" T BlinkScript1.kernelSourceFile}
  addUserKnob {26 "" l " "}
@@ -229,7 +230,6 @@ Group {
   DRT_CAM_Kernel_compressionFuncParamsM {{parent.compressionFuncParamsM} {parent.compressionFuncParamsM} {parent.compressionFuncParamsM} {parent.compressionFuncParamsM}}
   DRT_CAM_Kernel_Reachcompressmode {{parent.reachCompressMode}}
   DRT_CAM_Kernel_reachNick true
-  DRT_CAM_Kernel_Locuscompressmode false
   DRT_CAM_Kernel_boundryIntersectionMethod {{boundryIntersectionMethod}}
   DRT_CAM_Kernel_disableLowerHullGamma true
   DRT_CAM_Kernel_lowerHullGamma {{lowerHullGamma}}
